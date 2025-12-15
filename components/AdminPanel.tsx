@@ -1,11 +1,24 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { AccessLog } from '../types';
-import { Shield, Users, MousePointer, Clock, Activity } from 'lucide-react';
+import { Shield, Users, MousePointer, Clock, Activity, Building2, ChevronRight, ToggleRight, ToggleLeft, BarChart2 } from 'lucide-react';
+
+interface CompanyUser {
+  username: string;
+  lastAccess: string;
+}
 
 export const AdminPanel: React.FC = () => {
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  
+  // Estado local para simular permissões (já que não temos tabela de permissões no DB)
+  const [permissions, setPermissions] = useState<Record<string, {
+    active: boolean;
+    consultantsModule: boolean;
+    improvementsModule: boolean;
+  }>>({});
 
   useEffect(() => {
     fetchLogs();
@@ -13,57 +26,88 @@ export const AdminPanel: React.FC = () => {
 
   const fetchLogs = async () => {
     try {
-      // Tenta buscar da tabela system_logs. 
-      // OBS: Se a tabela não existir no Supabase, isso retornará erro.
       const { data, error } = await supabase
         .from('system_logs')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(200);
+        .limit(500); // Aumentei o limite para pegar mais histórico
 
       if (error) throw error;
       if (data) setLogs(data);
     } catch (error) {
       console.error('Erro ao buscar logs:', error);
-      // Mock data para demonstração caso a tabela não exista ainda
-      // setLogs([]); 
     } finally {
       setLoading(false);
     }
   };
 
-  const stats = useMemo(() => {
-    const totalAccess = logs.length;
+  // Extrair lista de usuários únicos (Empresas Ativas)
+  const companies = useMemo(() => {
+    const userMap = new Map<string, string>(); // user -> lastAccess
     
-    // Usuário mais ativo
-    const userCounts: Record<string, number> = {};
     logs.forEach(log => {
-      userCounts[log.username] = (userCounts[log.username] || 0) + 1;
+        if (log.username === 'Kairy') return; // Ignora o admin na lista de empresas
+        if (!userMap.has(log.username)) {
+            userMap.set(log.username, log.created_at);
+        }
     });
-    const mostActiveUser = Object.entries(userCounts).sort((a, b) => b[1] - a[1])[0];
 
-    // Área mais acessada (baseada em 'tab_change')
+    return Array.from(userMap.entries()).map(([username, lastAccess]) => ({
+        username,
+        lastAccess
+    }));
+  }, [logs]);
+
+  // Estatísticas do Usuário Selecionado
+  const userStats = useMemo(() => {
+    if (!selectedUser) return null;
+
+    const userLogs = logs.filter(l => l.username === selectedUser);
+    const totalAccess = userLogs.length;
+    const lastAccess = userLogs[0]?.created_at;
+
+    // Área mais acessada
     const pageCounts: Record<string, number> = {};
-    logs.filter(l => l.action === 'tab_change').forEach(log => {
+    userLogs.filter(l => l.action === 'tab_change').forEach(log => {
         const page = log.details || 'unknown';
         pageCounts[page] = (pageCounts[page] || 0) + 1;
     });
     const mostVisitedPage = Object.entries(pageCounts).sort((a, b) => b[1] - a[1])[0];
 
-    // Acessos Hoje
-    const today = new Date().toISOString().split('T')[0];
-    const accessesToday = logs.filter(l => l.created_at.startsWith(today)).length;
-
     return {
-      totalAccess,
-      mostActiveUser: mostActiveUser ? mostActiveUser[0] : '-',
-      mostActiveUserCount: mostActiveUser ? mostActiveUser[1] : 0,
-      mostVisitedPage: mostVisitedPage ? mostVisitedPage[0] : '-',
-      accessesToday
+        totalAccess,
+        lastAccess,
+        mostVisitedPage: mostVisitedPage ? mostVisitedPage[0] : 'Nenhuma atividade',
+        logs: userLogs
     };
-  }, [logs]);
+  }, [logs, selectedUser]);
+
+  // Inicializa permissões se não existirem
+  useEffect(() => {
+    if (selectedUser && !permissions[selectedUser]) {
+        setPermissions(prev => ({
+            ...prev,
+            [selectedUser]: {
+                active: true,
+                consultantsModule: true,
+                improvementsModule: true
+            }
+        }));
+    }
+  }, [selectedUser]);
+
+  const togglePermission = (user: string, key: 'active' | 'consultantsModule' | 'improvementsModule') => {
+      setPermissions(prev => ({
+          ...prev,
+          [user]: {
+              ...prev[user],
+              [key]: !prev[user][key]
+          }
+      }));
+  };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleString('pt-BR', {
       day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
     });
@@ -71,122 +115,189 @@ export const AdminPanel: React.FC = () => {
 
   if (loading) {
      return (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-12 flex justify-center items-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-3 text-slate-500">Carregando logs do sistema...</span>
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <span className="ml-3 text-slate-500">Carregando dados administrativos...</span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-slate-900 text-white p-6 rounded-xl shadow-md">
-        <div className="flex items-center gap-3">
-            <Shield className="text-blue-400" size={32} />
-            <div>
-                <h2 className="text-xl font-bold">Painel Administrativo</h2>
-                <p className="text-slate-400 text-sm">Monitoramento de acesso e uso do sistema</p>
-            </div>
+    <div className="flex h-[calc(100vh-100px)] gap-6">
+      
+      {/* COLUNA ESQUERDA: LISTA DE EMPRESAS */}
+      <div className="w-1/3 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Building2 size={18} className="text-slate-500" />
+                Empresas Ativas
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">Selecione para ver detalhes</p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            {companies.length > 0 ? companies.map((comp) => (
+                <button
+                    key={comp.username}
+                    onClick={() => setSelectedUser(comp.username)}
+                    className={`w-full text-left p-4 rounded-lg border transition-all flex items-center justify-between group ${
+                        selectedUser === comp.username 
+                        ? 'bg-indigo-50 border-indigo-200 shadow-sm' 
+                        : 'bg-white border-slate-100 hover:border-indigo-200 hover:bg-slate-50'
+                    }`}
+                >
+                    <div>
+                        <p className={`font-bold ${selectedUser === comp.username ? 'text-indigo-700' : 'text-slate-700'}`}>
+                            {comp.username}
+                        </p>
+                        <div className="flex items-center gap-1 text-xs text-slate-400 mt-1">
+                            <Clock size={10} />
+                            Último acesso: {formatDate(comp.lastAccess)}
+                        </div>
+                    </div>
+                    <ChevronRight size={16} className={`text-slate-300 transition-transform ${selectedUser === comp.username ? 'text-indigo-500 translate-x-1' : 'group-hover:translate-x-1'}`} />
+                </button>
+            )) : (
+                <div className="text-center p-8 text-slate-400">
+                    Nenhuma empresa encontrada nos logs.
+                </div>
+            )}
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                    <Activity size={20} />
+      {/* COLUNA DIREITA: DETALHES DA EMPRESA */}
+      <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+        {selectedUser && userStats ? (
+            <div className="flex flex-col h-full">
+                {/* Header do Usuário */}
+                <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-start">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                            {selectedUser}
+                            <span className={`text-xs px-2 py-0.5 rounded-full border ${permissions[selectedUser]?.active ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                {permissions[selectedUser]?.active ? 'ATIVO' : 'BLOQUEADO'}
+                            </span>
+                        </h2>
+                        <p className="text-slate-500 text-sm mt-1">Gerenciamento de conta e estatísticas</p>
+                    </div>
+                    <div className="flex flex-col items-end">
+                         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Acessos</span>
+                         <span className="text-xl font-bold text-indigo-600">{userStats.totalAccess}</span>
+                    </div>
                 </div>
-                <span className="text-slate-500 text-sm font-medium">Total de Ações</span>
-            </div>
-            <p className="text-2xl font-bold text-slate-800">{stats.totalAccess}</p>
-        </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-green-50 text-green-600 rounded-lg">
-                    <Users size={20} />
+                <div className="flex-1 overflow-y-auto p-6">
+                    
+                    {/* STATS CARDS */}
+                    <div className="grid grid-cols-2 gap-4 mb-8">
+                        <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                            <div className="flex items-center gap-2 text-indigo-800 font-semibold mb-2">
+                                <MousePointer size={18} />
+                                Área Mais Acessada
+                            </div>
+                            <div className="text-lg font-bold text-slate-800 capitalize">
+                                {userStats.mostVisitedPage === 'dashboard' ? 'Todos os Leads' :
+                                 userStats.mostVisitedPage === 'consultants' ? 'Consultores' :
+                                 userStats.mostVisitedPage === 'improvements' ? 'Melhorias' :
+                                 userStats.mostVisitedPage}
+                            </div>
+                        </div>
+                        <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
+                            <div className="flex items-center gap-2 text-purple-800 font-semibold mb-2">
+                                <Activity size={18} />
+                                Status Atual
+                            </div>
+                            <div className="text-lg font-bold text-slate-800">
+                                Regular
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* PERMISSIONS / TOGGLES */}
+                    <div className="mb-8">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2">
+                            <Shield size={18} className="text-slate-500" />
+                            Controle de Funcionalidades
+                        </h3>
+                        <div className="space-y-4">
+                            {/* Toggle 1: Acesso Geral */}
+                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                <div>
+                                    <p className="font-medium text-slate-800">Acesso ao Sistema</p>
+                                    <p className="text-xs text-slate-500">Bloquear ou permitir login desta empresa</p>
+                                </div>
+                                <button 
+                                    onClick={() => togglePermission(selectedUser, 'active')}
+                                    className={`transition-colors ${permissions[selectedUser]?.active ? 'text-green-600' : 'text-slate-400'}`}
+                                >
+                                    {permissions[selectedUser]?.active ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                                </button>
+                            </div>
+
+                            {/* Toggle 2: Módulo Consultores */}
+                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                <div>
+                                    <p className="font-medium text-slate-800">Módulo de Consultores</p>
+                                    <p className="text-xs text-slate-500">Acesso à aba de distribuição de leads</p>
+                                </div>
+                                <button 
+                                    onClick={() => togglePermission(selectedUser, 'consultantsModule')}
+                                    className={`transition-colors ${permissions[selectedUser]?.consultantsModule ? 'text-indigo-600' : 'text-slate-400'}`}
+                                >
+                                    {permissions[selectedUser]?.consultantsModule ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                                </button>
+                            </div>
+
+                            {/* Toggle 3: Módulo Melhorias */}
+                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                <div>
+                                    <p className="font-medium text-slate-800">Solicitação de Melhorias</p>
+                                    <p className="text-xs text-slate-500">Permissão para enviar feedbacks</p>
+                                </div>
+                                <button 
+                                    onClick={() => togglePermission(selectedUser, 'improvementsModule')}
+                                    className={`transition-colors ${permissions[selectedUser]?.improvementsModule ? 'text-indigo-600' : 'text-slate-400'}`}
+                                >
+                                    {permissions[selectedUser]?.improvementsModule ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ACTIVITY LOG (Mini) */}
+                    <div>
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2">
+                            <BarChart2 size={18} className="text-slate-500" />
+                            Histórico Recente
+                        </h3>
+                        <div className="space-y-3">
+                            {userStats.logs.slice(0, 5).map((log) => (
+                                <div key={log.id} className="flex items-center justify-between text-sm p-2 hover:bg-slate-50 rounded">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-2 h-2 rounded-full ${log.action === 'login' ? 'bg-green-500' : 'bg-blue-400'}`}></div>
+                                        <span className="text-slate-700 font-medium capitalize">
+                                            {log.action === 'tab_change' ? 'Navegou para' : log.action}
+                                        </span>
+                                        <span className="text-slate-500 text-xs">
+                                             {log.details === 'dashboard' ? 'Todos os Leads' :
+                                              log.details === 'consultants' ? 'Consultores' :
+                                              log.details}
+                                        </span>
+                                    </div>
+                                    <span className="text-slate-400 text-xs">{formatDate(log.created_at)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                 </div>
-                <span className="text-slate-500 text-sm font-medium">Usuário + Ativo</span>
             </div>
-            <p className="text-2xl font-bold text-slate-800">{stats.mostActiveUser}</p>
-            <p className="text-xs text-slate-400">{stats.mostActiveUserCount} registros</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
-                    <MousePointer size={20} />
-                </div>
-                <span className="text-slate-500 text-sm font-medium">Área + Acessada</span>
+        ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                <Building2 size={64} className="mb-4 text-slate-200" />
+                <p className="text-lg font-medium">Selecione uma empresa</p>
+                <p className="text-sm">Escolha na lista à esquerda para ver estatísticas e gerenciar permissões.</p>
             </div>
-            <p className="text-2xl font-bold text-slate-800 capitalize">
-                {stats.mostVisitedPage === '-' ? '-' : 
-                 stats.mostVisitedPage === 'dashboard' ? 'Todos os Leads' :
-                 stats.mostVisitedPage === 'consultants' ? 'Consultores' : 
-                 stats.mostVisitedPage}
-            </p>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
-                    <Clock size={20} />
-                </div>
-                <span className="text-slate-500 text-sm font-medium">Acessos Hoje</span>
-            </div>
-            <p className="text-2xl font-bold text-slate-800">{stats.accessesToday}</p>
-        </div>
-      </div>
-
-      {/* Logs Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-6 border-b border-slate-100">
-            <h3 className="font-bold text-slate-800">Histórico de Atividades Recentes</h3>
-        </div>
-        <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-slate-600 uppercase text-xs">
-                    <tr>
-                        <th className="p-4">Data/Hora</th>
-                        <th className="p-4">Usuário</th>
-                        <th className="p-4">Ação</th>
-                        <th className="p-4">Detalhes</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {logs.length > 0 ? logs.map((log) => (
-                        <tr key={log.id} className="hover:bg-slate-50">
-                            <td className="p-4 text-slate-500">{formatDate(log.created_at)}</td>
-                            <td className="p-4 font-medium text-slate-800">
-                                <span className={`px-2 py-1 rounded-md text-xs ${
-                                    log.username === 'Kairy' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
-                                }`}>
-                                    {log.username}
-                                </span>
-                            </td>
-                            <td className="p-4">
-                                {log.action === 'login' && <span className="text-green-600 font-medium">Login</span>}
-                                {log.action === 'logout' && <span className="text-red-500">Logout</span>}
-                                {log.action === 'tab_change' && <span className="text-blue-500">Navegação</span>}
-                            </td>
-                            <td className="p-4 text-slate-600 capitalize">
-                                {log.details === 'dashboard' ? 'Todos os Leads' :
-                                 log.details === 'consultants' ? 'Leads Consultores' :
-                                 log.details === 'improvements' ? 'Melhorias' :
-                                 log.details}
-                            </td>
-                        </tr>
-                    )) : (
-                        <tr>
-                            <td colSpan={4} className="p-8 text-center text-slate-500">
-                                Nenhum log registrado ou tabela 'system_logs' não encontrada.
-                            </td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
+        )}
       </div>
     </div>
   );

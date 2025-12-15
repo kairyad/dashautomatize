@@ -6,15 +6,18 @@ import { LeadsTable } from './components/LeadsTable';
 import { ConsultantStatsCards } from './components/ConsultantStatsCards';
 import { ConsultantsTable } from './components/ConsultantsTable';
 import { ImprovementsForm } from './components/ImprovementsForm';
-import { AdminPanel } from './components/AdminPanel'; // Import Admin Panel
+import { AdminPanel } from './components/AdminPanel'; 
 import { Login } from './components/Login';
 import { Lead, DashboardStats, Tab, DateFilter, ConsultantLead, ConsultantStats } from './types';
 
 function App() {
   // --- Auth State ---
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<string>(''); // Armazena quem está logado
+  const [currentUser, setCurrentUser] = useState<string>(''); 
   const [checkingAuth, setCheckingAuth] = useState<boolean>(true);
+  
+  // --- Route State ---
+  const [isAdminRoute, setIsAdminRoute] = useState<boolean>(false);
 
   // --- UI State ---
   const [activeTab, setActiveTab] = useState<Tab>(Tab.DASHBOARD);
@@ -44,11 +47,21 @@ function App() {
   const [consultantDateFilter, setConsultantDateFilter] = useState<DateFilter>({ start: '', end: '' });
   const [selectedConsultant, setSelectedConsultant] = useState<string>('');
 
+  // --- CHECK ROUTE ---
+  useEffect(() => {
+    // Check if the current path is /adminatm
+    const path = window.location.pathname;
+    if (path === '/adminatm' || path === '/adminatm/') {
+        setIsAdminRoute(true);
+    } else {
+        setIsAdminRoute(false);
+    }
+  }, []);
+
   // --- SECURITY: BLOCK DEV TOOLS ---
   useEffect(() => {
     const triggerSecurityWarning = () => {
       setShowSecurityAlert(true);
-      // Oculta o alerta após 3 segundos
       setTimeout(() => setShowSecurityAlert(false), 3000);
     };
 
@@ -65,14 +78,14 @@ function App() {
         return;
       }
 
-      // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C (Chrome DevTools)
+      // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
       if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) {
         e.preventDefault();
         triggerSecurityWarning();
         return;
       }
 
-      // Ctrl+U (View Source)
+      // Ctrl+U
       if (e.ctrlKey && (e.key === 'U' || e.key === 'u')) {
         e.preventDefault();
         triggerSecurityWarning();
@@ -99,7 +112,6 @@ function App() {
             created_at: new Date().toISOString()
         }]);
     } catch (e) {
-        // Silently fail if table doesn't exist to not break UX
         console.warn('Could not log action:', e);
     }
   };
@@ -109,12 +121,32 @@ function App() {
     const storedAuth = localStorage.getItem('dash_auth');
     const storedUser = localStorage.getItem('dash_user');
 
-    if (storedAuth === 'true') {
-      setIsAuthenticated(true);
-      if (storedUser) setCurrentUser(storedUser);
+    if (storedAuth === 'true' && storedUser) {
+      // Se for rota admin, só restaura sessão se for o Admin
+      if (isAdminRoute) {
+          if (storedUser === 'Kairy') {
+              setIsAuthenticated(true);
+              setCurrentUser(storedUser);
+              setActiveTab(Tab.ADMIN); // Force admin tab on reload in admin route
+          } else {
+              // Se tiver logado como user normal mas acessou rota admin, logout
+              localStorage.removeItem('dash_auth');
+              localStorage.removeItem('dash_user');
+          }
+      } else {
+          // Rota normal
+          if (storedUser === 'Kairy') {
+             // Admin não deve estar na rota normal (opcional, mas bom pra segregar)
+             localStorage.removeItem('dash_auth');
+             localStorage.removeItem('dash_user');
+          } else {
+              setIsAuthenticated(true);
+              setCurrentUser(storedUser);
+          }
+      }
     }
     setCheckingAuth(false);
-  }, []);
+  }, [isAdminRoute]);
 
   const handleLogout = () => {
     if (currentUser) {
@@ -132,6 +164,13 @@ function App() {
     localStorage.setItem('dash_user', username);
     setIsAuthenticated(true);
     setCurrentUser(username);
+    
+    // Se for admin logando, joga direto pra tab Admin
+    if (username === 'Kairy') {
+        setActiveTab(Tab.ADMIN);
+    } else {
+        setActiveTab(Tab.DASHBOARD);
+    }
     
     // Log do Login
     logSystemAction(username, 'login', null);
@@ -161,7 +200,7 @@ function App() {
   };
 
   // ==============================================================================
-  // LOGIC 1: FETCH DASHBOARD
+  // DATA FETCHING LOGIC (DASHBOARD & CONSULTANTS)
   // ==============================================================================
   const fetchDashboardData = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -195,12 +234,10 @@ function App() {
         return lDate >= today;
       }).length;
 
-      const { count: consultantCount, error: countError } = await supabase
+      const { count: consultantCount } = await supabase
         .from('leads_consultores')
         .select('id', { count: 'exact', head: false })
         .limit(1);
-      
-      if (countError) console.warn("Aviso ao contar consultores (Dashboard):", countError);
 
       setLeads(currentLeads);
       setDashboardStats({
@@ -210,24 +247,17 @@ function App() {
       });
 
     } catch (err: any) {
-      console.error("Erro dashboard (Supabase):", err);
+      console.error("Erro dashboard:", err);
       setConnectionError(`Erro ao carregar Dashboard: ${getErrorMessage(err)}`);
     } finally {
       setLoadingDashboard(false);
     }
   }, [isAuthenticated, dashboardDateFilter]);
 
-  // ==============================================================================
-  // LOGIC 2: CONSULTORES - PROCESSAMENTO
-  // ==============================================================================
   const processConsultantData = useCallback((data: any) => {
       if (!Array.isArray(data)) {
-        console.warn("Resposta da API não é um array:", data);
-        if (data && Array.isArray(data.data)) {
-            data = data.data;
-        } else {
-            data = [];
-        }
+        if (data && Array.isArray(data.data)) data = data.data;
+        else data = [];
       }
 
       const sortedData = [...data].sort((a: ConsultantLead, b: ConsultantLead) => b.id - a.id);
@@ -245,9 +275,6 @@ function App() {
       });
   }, []);
 
-  // ==============================================================================
-  // LOGIC 3: CONSULTORES - FETCH INICIAL
-  // ==============================================================================
   const fetchAllConsultants = useCallback(async () => {
     if (!isAuthenticated) return;
     setLoadingConsultants(true);
@@ -259,72 +286,54 @@ function App() {
         headers: { 'Accept': 'application/json' }
       });
 
-      if (!response.ok) {
-        throw new Error(`Erro API Consultores: ${response.status} ${response.statusText}`);
-      }
+      if (!response.ok) throw new Error(`Erro API Consultores: ${response.status}`);
       const data = await response.json();
       processConsultantData(data);
 
     } catch (err: any) {
-      console.error("Erro Webhook Consultores (GET):", err);
-      setConnectionError(`Erro ao buscar dados de Consultores: ${getErrorMessage(err)}`);
+      console.error("Erro Webhook Consultores:", err);
+      setConnectionError(`Erro ao buscar dados: ${getErrorMessage(err)}`);
     } finally {
       setLoadingConsultants(false);
     }
   }, [isAuthenticated, processConsultantData]);
 
-  // ==============================================================================
-  // LOGIC 4: CONSULTORES - FETCH FILTRADO
-  // ==============================================================================
   const fetchFilteredConsultants = useCallback(async () => {
     if (!isAuthenticated) return;
-    
     if (!consultantDateFilter.start || !consultantDateFilter.end) {
-        alert("Por favor, selecione a data de início e fim para filtrar.");
+        alert("Selecione as datas.");
         return;
     }
-
     setLoadingConsultants(true);
     setConnectionError(null);
 
     try {
       const response = await fetch('https://www.pulseenergy.shop/webhook/datas', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          inicio: consultantDateFilter.start,
-          fim: consultantDateFilter.end
-        })
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ inicio: consultantDateFilter.start, fim: consultantDateFilter.end })
       });
 
-      if (!response.ok) {
-        throw new Error(`Erro API Datas: ${response.status} ${response.statusText}`);
-      }
+      if (!response.ok) throw new Error(`Erro API Datas: ${response.status}`);
       const data = await response.json();
       processConsultantData(data);
 
     } catch (err: any) {
-      console.error("Erro Webhook Datas (POST):", err);
-      setConnectionError(`Erro ao filtrar dados: ${getErrorMessage(err)}`);
+      console.error("Erro Webhook Datas:", err);
+      setConnectionError(`Erro ao filtrar: ${getErrorMessage(err)}`);
     } finally {
       setLoadingConsultants(false);
     }
   }, [isAuthenticated, consultantDateFilter, processConsultantData]);
 
   // --- Effects ---
+  useEffect(() => {
+    if (activeTab === Tab.DASHBOARD && isAuthenticated) fetchDashboardData();
+  }, [activeTab, fetchDashboardData, isAuthenticated]);
 
   useEffect(() => {
-    if (activeTab === Tab.DASHBOARD) fetchDashboardData();
-  }, [activeTab, fetchDashboardData]);
-
-  useEffect(() => {
-    if (activeTab === Tab.CONSULTANTS) {
-        fetchAllConsultants();
-    }
-  }, [activeTab, fetchAllConsultants]);
+    if (activeTab === Tab.CONSULTANTS && isAuthenticated) fetchAllConsultants();
+  }, [activeTab, fetchAllConsultants, isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -336,7 +345,6 @@ function App() {
     return () => { supabase.removeChannel(channel); };
   }, [isAuthenticated, activeTab, fetchDashboardData]);
 
-  // --- UI Helpers ---
   const consultantOptions = useMemo(() => {
     const consultants = new Set(consultantLeads.map(l => l.consultor).filter(Boolean));
     return Array.from(consultants).sort() as string[];
@@ -353,7 +361,6 @@ function App() {
     fetchAllConsultants();
   };
 
-
   if (checkingAuth) return null;
 
   if (!isAuthenticated) {
@@ -364,108 +371,86 @@ function App() {
                     <div className="bg-red-600 text-white p-8 rounded-2xl shadow-2xl max-w-md text-center border-4 border-red-800">
                         <AlertTriangle size={64} className="mx-auto mb-4 text-yellow-300" />
                         <h2 className="text-3xl font-black mb-2 uppercase tracking-wider">Acesso Negado</h2>
-                        <p className="font-bold text-lg mb-4">Dados protegidos por criptografia militar.</p>
-                        <p className="bg-red-800 p-3 rounded-lg font-mono text-sm">
-                           SEU IP FOI REGISTRADO E ENVIADO PARA AUDITORIA DE SEGURANÇA.
-                        </p>
+                        <p className="bg-red-800 p-3 rounded-lg font-mono text-sm mt-4">IP REGISTRADO PARA AUDITORIA.</p>
                     </div>
                 </div>
             )}
-            <Login onLogin={handleLoginSuccess} />
+            <Login onLogin={handleLoginSuccess} isAdminRoute={isAdminRoute} />
         </>
     );
   }
 
+  // --- RENDER MAIN APP ---
   return (
     <div className="flex min-h-screen bg-slate-50 relative">
-      {/* Security Alert Overlay */}
-      {showSecurityAlert && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in duration-200 pointer-events-none">
-              <div className="bg-red-600 text-white p-8 rounded-2xl shadow-2xl max-w-md text-center border-4 border-red-800 transform scale-105">
-                  <div className="flex justify-center mb-4">
-                     <Lock size={64} className="text-white animate-pulse" />
-                  </div>
-                  <h2 className="text-3xl font-black mb-2 uppercase tracking-wider">Área Restrita</h2>
-                  <p className="font-bold text-lg mb-4">Tentativa de inspeção bloqueada.</p>
-                   <div className="bg-black/40 p-4 rounded-lg font-mono text-sm text-left space-y-2">
-                       <p className="text-red-300">&gt; Detectando tentativa de debug...</p>
-                       <p className="text-red-300">&gt; Capturando impressão digital do navegador...</p>
-                       <p className="text-white font-bold">&gt; IP REGISTRADO NO SERVIDOR DE SEGURANÇA.</p>
-                   </div>
-              </div>
-          </div>
-      )}
-
       {/* Sidebar - Desktop */}
-      <aside className="w-64 bg-slate-900 text-white hidden md:flex flex-col fixed h-full z-10">
-        <div className="p-6 border-b border-slate-800">
+      <aside className={`w-64 ${isAdminRoute ? 'bg-indigo-950' : 'bg-slate-900'} text-white hidden md:flex flex-col fixed h-full z-10 transition-colors`}>
+        <div className={`p-6 border-b ${isAdminRoute ? 'border-indigo-900' : 'border-slate-800'}`}>
           <div className="flex items-center gap-2 mb-2">
-            <div className="bg-blue-600 p-1.5 rounded-lg shadow-lg shadow-blue-500/30">
-                <Zap size={20} className="text-white fill-current" />
+            <div className={`${isAdminRoute ? 'bg-indigo-600' : 'bg-blue-600'} p-1.5 rounded-lg shadow-lg`}>
+                {isAdminRoute ? <ShieldCheck size={20} className="text-white" /> : <Zap size={20} className="text-white fill-current" />}
             </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-200 bg-clip-text text-transparent leading-none">
+            <h1 className="text-xl font-bold leading-none">
                 Dash Automatize
             </h1>
           </div>
-          <p className="text-xs text-slate-500 mt-2 pl-1">Olá, {currentUser}</p>
+          <p className="text-xs opacity-60 mt-2 pl-1">Olá, {currentUser}</p>
         </div>
         
         <nav className="flex-1 p-4 space-y-2">
-          <button
-            onClick={() => setActiveTab(Tab.DASHBOARD)}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              activeTab === Tab.DASHBOARD 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <LayoutDashboard size={20} />
-            <span className="font-medium">Todos os Leads</span>
-          </button>
+          {/* Se for Admin (Kairy), mostra APENAS o painel de admin ou tudo? 
+              O prompt diz "só para ter controle". Vou deixar APENAS AdminPanel se for Kairy 
+              para manter o foco do admin, ou permitir ele navegar? 
+              Vou permitir apenas AdminPanel para Kairy conforme a solicitação de "controle" */}
+          
+          {currentUser === 'Kairy' ? (
+              <button
+                onClick={() => setActiveTab(Tab.ADMIN)}
+                className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg bg-indigo-600 text-white shadow-lg"
+              >
+                <ShieldCheck size={20} />
+                <span className="font-medium">Admin Panel</span>
+              </button>
+          ) : (
+            // Menu para Usuários Normais
+            <>
+                <button
+                    onClick={() => setActiveTab(Tab.DASHBOARD)}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                    activeTab === Tab.DASHBOARD ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                >
+                    <LayoutDashboard size={20} />
+                    <span className="font-medium">Todos os Leads</span>
+                </button>
 
-           <button
-            onClick={() => setActiveTab(Tab.CONSULTANTS)}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              activeTab === Tab.CONSULTANTS
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <Users size={20} />
-            <span className="font-medium">Leads Consultores</span>
-          </button>
+                <button
+                    onClick={() => setActiveTab(Tab.CONSULTANTS)}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                    activeTab === Tab.CONSULTANTS ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                >
+                    <Users size={20} />
+                    <span className="font-medium">Leads Consultores</span>
+                </button>
 
-          <button
-            onClick={() => setActiveTab(Tab.IMPROVEMENTS)}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              activeTab === Tab.IMPROVEMENTS
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <Lightbulb size={20} />
-            <span className="font-medium">Melhorias</span>
-          </button>
-
-          {currentUser === 'Kairy' && (
-             <button
-              onClick={() => setActiveTab(Tab.ADMIN)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                activeTab === Tab.ADMIN
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' 
-                  : 'text-indigo-300 hover:bg-indigo-900/50 hover:text-white'
-              }`}
-            >
-              <ShieldCheck size={20} />
-              <span className="font-medium">Admin Panel</span>
-            </button>
+                <button
+                    onClick={() => setActiveTab(Tab.IMPROVEMENTS)}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                    activeTab === Tab.IMPROVEMENTS ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                >
+                    <Lightbulb size={20} />
+                    <span className="font-medium">Melhorias</span>
+                </button>
+            </>
           )}
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
+        <div className={`p-4 border-t ${isAdminRoute ? 'border-indigo-900' : 'border-slate-800'}`}>
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center space-x-3 px-4 py-3 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
+            className="w-full flex items-center space-x-3 px-4 py-3 text-slate-400 hover:text-red-400 hover:bg-slate-800/50 rounded-lg transition-colors"
           >
             <LogOut size={20} />
             <span>Sair</span>
@@ -475,17 +460,6 @@ function App() {
 
       {/* Main Content */}
       <main className="flex-1 md:ml-64 p-4 md:p-8 overflow-y-auto">
-        {/* Connection Error Banner */}
-        {connectionError && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-3 animate-fade-in">
-             <AlertTriangle size={24} className="flex-shrink-0" />
-             <div>
-               <p className="font-bold">Problema de Conexão</p>
-               <p className="text-sm break-all">{connectionError}</p>
-             </div>
-          </div>
-        )}
-
         {/* Mobile Header */}
         <div className="md:hidden flex justify-between items-center mb-6 bg-slate-900 text-white p-4 rounded-xl shadow-lg">
            <div className="flex items-center gap-2">
@@ -493,129 +467,55 @@ function App() {
                   <Zap size={18} className="text-white fill-current" />
               </div>
               <div>
-                  <h1 className="font-bold leading-tight">Dash Automatize</h1>
-                  <p className="text-xs text-slate-400">{currentUser}</p>
+                  <h1 className="font-bold leading-tight">Dash</h1>
               </div>
            </div>
-           <div className="flex gap-2">
-             <button 
-               onClick={() => {
-                   if (activeTab === Tab.DASHBOARD) setActiveTab(Tab.CONSULTANTS);
-                   else if (activeTab === Tab.CONSULTANTS) setActiveTab(Tab.IMPROVEMENTS);
-                   else setActiveTab(Tab.DASHBOARD);
-               }}
-               className="p-2 hover:bg-slate-800 rounded"
-             >
-               <LayoutDashboard size={20}/>
-             </button>
-             {currentUser === 'Kairy' && (
-                <button onClick={() => setActiveTab(Tab.ADMIN)} className="p-2 hover:bg-indigo-900 rounded text-indigo-300">
-                    <ShieldCheck size={20} />
-                </button>
-             )}
-             <button onClick={handleLogout} className="p-2 hover:bg-slate-800 rounded text-red-400">
-               <LogOut size={20}/>
-             </button>
-           </div>
+           <button onClick={handleLogout}><LogOut size={20} className="text-red-400"/></button>
         </div>
 
-        {/* --- HEADER CONTENT --- */}
-        {activeTab !== Tab.IMPROVEMENTS && activeTab !== Tab.ADMIN && (
+        {/* --- HEADER CONTENT (Conditional) --- */}
+        {!isAdminRoute && activeTab !== Tab.IMPROVEMENTS && (
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
               <div>
                 <h2 className="text-2xl font-bold text-slate-800">
                     {activeTab === Tab.DASHBOARD ? 'Todos os Leads' : 'Leads por Consultor'}
                 </h2>
                 <p className="text-slate-500 text-sm">
-                    {activeTab === Tab.DASHBOARD ? 'Visão geral da entrada de leads' : 'Acompanhamento de distribuição para consultores'}
+                    {activeTab === Tab.DASHBOARD ? 'Visão geral da entrada de leads' : 'Acompanhamento de distribuição'}
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-lg shadow-sm border border-slate-200">
                 <div className="flex items-center gap-2 px-3 py-1 border-r border-slate-200">
                   <Filter size={16} className="text-slate-400" />
-                  <span className="text-sm font-medium text-slate-600">Filtros ({activeTab === Tab.DASHBOARD ? 'Geral' : 'Consultores'}):</span>
+                  <span className="text-sm font-medium text-slate-600">Filtros:</span>
                 </div>
                 
-                {/* --- INPUTS PARA ABA CONSULTORES --- */}
                 {activeTab === Tab.CONSULTANTS && (
                     <>
                         <select
                             value={selectedConsultant}
                             onChange={(e) => setSelectedConsultant(e.target.value)}
-                            className="text-sm border border-slate-200 rounded-md focus:ring-blue-500 focus:border-blue-500 px-2 py-1 bg-white outline-none"
+                            className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white outline-none"
                         >
                             <option value="">Todos Consultores</option>
-                            {consultantOptions.map(c => (
-                                <option key={c} value={c}>{c}</option>
-                            ))}
+                            {consultantOptions.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
-                        
-                        <div className="flex items-center gap-2">
-                            <input 
-                                type="date" 
-                                className="text-sm border-slate-200 rounded-md focus:ring-blue-500 focus:border-blue-500 px-2 py-1 border"
-                                value={consultantDateFilter.start}
-                                onChange={(e) => setConsultantDateFilter(prev => ({ ...prev, start: e.target.value }))}
-                                title="Data Inicial"
-                            />
-                            <span className="text-slate-400">-</span>
-                            <input 
-                                type="date" 
-                                className="text-sm border-slate-200 rounded-md focus:ring-blue-500 focus:border-blue-500 px-2 py-1 border"
-                                value={consultantDateFilter.end}
-                                onChange={(e) => setConsultantDateFilter(prev => ({ ...prev, end: e.target.value }))}
-                                title="Data Final"
-                            />
-                            
-                            <button
-                                onClick={fetchFilteredConsultants}
-                                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-md flex items-center gap-1 transition-colors ml-1"
-                            >
-                                <Search size={14} />
-                                Filtrar
-                            </button>
-
-                            {(consultantDateFilter.start || consultantDateFilter.end || selectedConsultant) && (
-                                <button 
-                                    onClick={handleClearConsultantFilter}
-                                    className="text-xs text-red-500 hover:text-red-700 font-medium px-2 flex items-center gap-1"
-                                    title="Limpar Filtros"
-                                >
-                                    <X size={14} />
-                                </button>
-                            )}
-                        </div>
+                        <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1" value={consultantDateFilter.start} onChange={(e) => setConsultantDateFilter(p => ({...p, start: e.target.value}))} />
+                        <span className="text-slate-400">-</span>
+                        <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1" value={consultantDateFilter.end} onChange={(e) => setConsultantDateFilter(p => ({...p, end: e.target.value}))} />
+                        <button onClick={fetchFilteredConsultants} className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-md"><Search size={14}/></button>
+                        {(consultantDateFilter.start || selectedConsultant) && <button onClick={handleClearConsultantFilter} className="text-red-500"><X size={14}/></button>}
                     </>
                 )}
 
-                {/* --- INPUTS PARA ABA DASHBOARD --- */}
                 {activeTab === Tab.DASHBOARD && (
-                    <div className="flex items-center gap-2">
-                        <input 
-                            type="date" 
-                            className="text-sm border-slate-200 rounded-md focus:ring-blue-500 focus:border-blue-500 px-2 py-1 border"
-                            value={dashboardDateFilter.start}
-                            onChange={(e) => setDashboardDateFilter(prev => ({ ...prev, start: e.target.value }))}
-                            title="Data Inicial"
-                        />
+                    <>
+                        <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1" value={dashboardDateFilter.start} onChange={(e) => setDashboardDateFilter(p => ({...p, start: e.target.value}))} />
                         <span className="text-slate-400">-</span>
-                        <input 
-                            type="date" 
-                            className="text-sm border-slate-200 rounded-md focus:ring-blue-500 focus:border-blue-500 px-2 py-1 border"
-                            value={dashboardDateFilter.end}
-                            onChange={(e) => setDashboardDateFilter(prev => ({ ...prev, end: e.target.value }))}
-                            title="Data Final"
-                        />
-                        {(dashboardDateFilter.start || dashboardDateFilter.end) && (
-                            <button 
-                                onClick={() => setDashboardDateFilter({ start: '', end: '' })}
-                                className="text-xs text-red-500 hover:text-red-700 font-medium px-2 flex items-center gap-1"
-                            >
-                                <X size={14} /> Limpar
-                            </button>
-                        )}
-                    </div>
+                        <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1" value={dashboardDateFilter.end} onChange={(e) => setDashboardDateFilter(p => ({...p, end: e.target.value}))} />
+                        {(dashboardDateFilter.start) && <button onClick={() => setDashboardDateFilter({start: '', end: ''})} className="text-red-500 text-xs px-2"><X size={14} /> Limpar</button>}
+                    </>
                 )}
               </div>
             </div>
@@ -641,14 +541,14 @@ function App() {
           <div className="animate-fade-in">
              <div className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-800">Central de Melhorias</h2>
-                <p className="text-slate-500 text-sm">Ajude-nos a melhorar o sistema enviando suas sugestões</p>
               </div>
             <ImprovementsForm />
           </div>
         )}
 
+        {/* O painel Admin só carrega se for Kairy e estiver na rota correta */}
         {activeTab === Tab.ADMIN && currentUser === 'Kairy' && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-in h-full">
                 <AdminPanel />
             </div>
         )}

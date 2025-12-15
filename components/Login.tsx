@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
-import { Lock, User, Zap, ArrowRight, Eye, EyeOff, ChevronRight, ShieldCheck, Shield } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, User, Zap, ArrowRight, Eye, EyeOff, ShieldCheck, Shield } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (username: string) => void;
+  isAdminRoute?: boolean;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLogin }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, isAdminRoute = false }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   
-  // Estado para controlar se é a tela de Admin ou User
-  const [isAdminMode, setIsAdminMode] = useState(false);
+  // O modo agora é definido estritamente pela prop passada (que vem da URL)
+  const isAdminMode = isAdminRoute;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +22,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     // Lógica separada por tipo de acesso
     if (isAdminMode) {
         // Validação estrita para Admin
-        // Credencial atualizada conforme solicitado: Kairy / 88320115#
         if (username.trim() === 'Kairy' && password === '88320115#') {
             onLogin('Kairy');
         } else {
@@ -37,9 +37,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             cred => cred.user.toLowerCase() === username.trim().toLowerCase() && cred.pass === password
         );
 
-        // Bloqueia Kairy de logar na tela comum para forçar uso da tela de Admin
+        // Bloqueia Kairy de logar na tela comum
         if (username.trim() === 'Kairy') {
-             setError('Por favor, utilize a área de "Acesso Administrativo".');
+             setError('Acesso administrativo não permitido nesta rota.');
              return;
         }
 
@@ -49,14 +49,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             setError('Credenciais inválidas. Tente novamente.');
         }
     }
-  };
-
-  const toggleMode = () => {
-      setIsAdminMode(!isAdminMode);
-      setUsername('');
-      setPassword('');
-      setError('');
-      setShowPassword(false);
   };
 
   // Definições de estilo baseadas no modo
@@ -80,7 +72,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       {/* --- PAINEL ESQUERDO (Visual/Institucional - Desktop) --- */}
       <div className={`hidden lg:flex w-1/2 relative ${bgGradient} text-white overflow-hidden flex-col justify-between p-12 z-10 transition-all duration-700`}>
         
-        {/* Elementos de Fundo (Abstrato/Tecnológico) */}
+        {/* Elementos de Fundo */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
             <div className={`absolute top-[-10%] left-[-10%] w-[500px] h-[500px] ${isAdminMode ? 'bg-indigo-600/30' : 'bg-blue-600/30'} rounded-full blur-[100px] transition-colors duration-700`}></div>
             <div className={`absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] ${isAdminMode ? 'bg-purple-600/30' : 'bg-indigo-600/30'} rounded-full blur-[120px] transition-colors duration-700`}></div>
@@ -98,14 +90,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <div className="relative z-10 max-w-lg mt-12 animate-fade-in">
           <h1 className="text-5xl font-bold leading-tight mb-6 tracking-tight">
             {isAdminMode ? (
-                <>Painel <br/>Administrativo</>
+                <>Portal <br/>Administrativo</>
             ) : (
                 <>Olá, <br />seja bem-vindo!</>
             )}
           </h1>
           <p className="text-blue-100 text-lg leading-relaxed mb-8 opacity-90 font-light">
             {isAdminMode 
-                ? 'Área restrita para gerenciamento global do sistema, logs de auditoria e configurações avançadas.'
+                ? 'Acesso restrito para gerenciamento de instâncias, controle de permissões e análise de uso do sistema.'
                 : 'Acesse sua central de controle. Gerencie leads, monitore a performance dos consultores e otimize suas automações.'
             }
           </p>
@@ -205,26 +197,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </form>
-
-          {/* Toggle Admin/User */}
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-            <button 
-                onClick={toggleMode}
-                className={`text-sm font-medium ${isAdminMode ? 'text-slate-500 hover:text-slate-800' : 'text-indigo-600 hover:text-indigo-800'} transition-colors flex items-center justify-center gap-2 w-full`}
-            >
-                {isAdminMode ? (
-                    <>
-                        <Zap size={16} />
-                        Voltar para Acesso Operacional
-                    </>
-                ) : (
-                    <>
-                        <ShieldCheck size={16} />
-                        Acesso Administrativo
-                    </>
-                )}
-            </button>
-          </div>
+          
+          {/* Seção de rodapé removida para Admin, mantida simples para user */}
+          {!isAdminMode && (
+            <div className="mt-8 text-center">
+                <p className="text-sm text-slate-500">
+                Ainda não tem acesso?{' '}
+                <button className="text-blue-600 font-bold hover:underline transition-all">
+                    Fale com o suporte
+                </button>
+                </p>
+            </div>
+          )}
 
         </div>
 
