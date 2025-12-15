@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from './lib/supabase';
-import { LayoutDashboard, Lightbulb, LogOut, Filter, X, Users, AlertTriangle, Search, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Lightbulb, LogOut, Filter, X, Users, AlertTriangle, Search, ShieldCheck, Lock } from 'lucide-react';
 import { StatsCards } from './components/StatsCards';
 import { LeadsTable } from './components/LeadsTable';
 import { ConsultantStatsCards } from './components/ConsultantStatsCards';
@@ -21,6 +21,9 @@ function App() {
   const [loadingDashboard, setLoadingDashboard] = useState<boolean>(false);
   const [loadingConsultants, setLoadingConsultants] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  
+  // --- SECURITY STATE ---
+  const [showSecurityAlert, setShowSecurityAlert] = useState(false);
 
   // --- STATE: DASHBOARD ---
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -40,6 +43,51 @@ function App() {
   });
   const [consultantDateFilter, setConsultantDateFilter] = useState<DateFilter>({ start: '', end: '' });
   const [selectedConsultant, setSelectedConsultant] = useState<string>('');
+
+  // --- SECURITY: BLOCK DEV TOOLS ---
+  useEffect(() => {
+    const triggerSecurityWarning = () => {
+      setShowSecurityAlert(true);
+      // Oculta o alerta após 3 segundos
+      setTimeout(() => setShowSecurityAlert(false), 3000);
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      triggerSecurityWarning();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F12
+      if (e.key === 'F12' || e.keyCode === 123) {
+        e.preventDefault();
+        triggerSecurityWarning();
+        return;
+      }
+
+      // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C (Chrome DevTools)
+      if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) {
+        e.preventDefault();
+        triggerSecurityWarning();
+        return;
+      }
+
+      // Ctrl+U (View Source)
+      if (e.ctrlKey && (e.key === 'U' || e.key === 'u')) {
+        e.preventDefault();
+        triggerSecurityWarning();
+        return;
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // --- LOGGING HELPER ---
   const logSystemAction = async (user: string, action: string, details: string | null) => {
@@ -90,10 +138,8 @@ function App() {
   };
 
   // Log de Troca de Aba
-  // Usamos um ref para não logar a montagem inicial se necessário, mas aqui queremos logar navegação
   useEffect(() => {
     if (isAuthenticated && currentUser) {
-        // Pequeno delay para garantir que não é um render desnecessário
         const timeout = setTimeout(() => {
              logSystemAction(currentUser, 'tab_change', activeTab);
         }, 500);
@@ -102,7 +148,6 @@ function App() {
   }, [activeTab, isAuthenticated, currentUser]);
 
 
-  // Helper para extrair mensagem de erro de forma segura
   const getErrorMessage = (err: any): string => {
     if (!err) return 'Erro desconhecido';
     if (typeof err === 'string') return err;
@@ -116,7 +161,7 @@ function App() {
   };
 
   // ==============================================================================
-  // LOGIC 1: FETCH DASHBOARD (novos_leads - Mantido no Supabase)
+  // LOGIC 1: FETCH DASHBOARD
   // ==============================================================================
   const fetchDashboardData = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -127,7 +172,6 @@ function App() {
       const today = new Date();
       today.setHours(0,0,0,0);
 
-      // Query Principal com Filtros
       let query = supabase
         .from('novos_leads')
         .select('*')
@@ -151,7 +195,6 @@ function App() {
         return lDate >= today;
       }).length;
 
-      // Busca Count Consultores apenas para exibir no card do Dashboard Geral
       const { count: consultantCount, error: countError } = await supabase
         .from('leads_consultores')
         .select('id', { count: 'exact', head: false })
@@ -175,13 +218,11 @@ function App() {
   }, [isAuthenticated, dashboardDateFilter]);
 
   // ==============================================================================
-  // LOGIC 2: CONSULTORES - PROCESSAMENTO DE DADOS (Helper Memoizado)
+  // LOGIC 2: CONSULTORES - PROCESSAMENTO
   // ==============================================================================
   const processConsultantData = useCallback((data: any) => {
-      // Validação do formato
       if (!Array.isArray(data)) {
         console.warn("Resposta da API não é um array:", data);
-        // Tenta recuperar se vier dentro de um objeto 'data' ou similar
         if (data && Array.isArray(data.data)) {
             data = data.data;
         } else {
@@ -189,12 +230,9 @@ function App() {
         }
       }
 
-      // Ordenar por ID decrescente
       const sortedData = [...data].sort((a: ConsultantLead, b: ConsultantLead) => b.id - a.id);
-
       setConsultantLeads(sortedData);
 
-      // --- CÁLCULO DE ESTATÍSTICAS (FRONTEND) ---
       const totalSent = sortedData.length;
       const todayStr = new Date().toISOString().split('T')[0];
       const sentToday = sortedData.filter((item: ConsultantLead) => item.data === todayStr).length;
@@ -208,7 +246,7 @@ function App() {
   }, []);
 
   // ==============================================================================
-  // LOGIC 3: CONSULTORES - FETCH INICIAL (GET - Todos)
+  // LOGIC 3: CONSULTORES - FETCH INICIAL
   // ==============================================================================
   const fetchAllConsultants = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -218,9 +256,7 @@ function App() {
     try {
       const response = await fetch('https://www.pulseenergy.shop/webhook/consultores', {
         method: 'GET',
-        headers: {
-            'Accept': 'application/json'
-        }
+        headers: { 'Accept': 'application/json' }
       });
 
       if (!response.ok) {
@@ -238,12 +274,11 @@ function App() {
   }, [isAuthenticated, processConsultantData]);
 
   // ==============================================================================
-  // LOGIC 4: CONSULTORES - FETCH FILTRADO (POST - Por Data)
+  // LOGIC 4: CONSULTORES - FETCH FILTRADO
   // ==============================================================================
   const fetchFilteredConsultants = useCallback(async () => {
     if (!isAuthenticated) return;
     
-    // Validação simples
     if (!consultantDateFilter.start || !consultantDateFilter.end) {
         alert("Por favor, selecione a data de início e fim para filtrar.");
         return;
@@ -281,19 +316,16 @@ function App() {
 
   // --- Effects ---
 
-  // Dashboard: Carrega quando a aba muda ou o filtro de data muda
   useEffect(() => {
     if (activeTab === Tab.DASHBOARD) fetchDashboardData();
   }, [activeTab, fetchDashboardData]);
 
-  // Consultores: Carrega TODOS apenas quando entra na aba pela primeira vez
   useEffect(() => {
     if (activeTab === Tab.CONSULTANTS) {
         fetchAllConsultants();
     }
   }, [activeTab, fetchAllConsultants]);
 
-  // Realtime: Dashboard Only
   useEffect(() => {
     if (!isAuthenticated) return;
     const channel = supabase.channel('global_changes')
@@ -318,18 +350,52 @@ function App() {
   const handleClearConsultantFilter = () => {
     setConsultantDateFilter({ start: '', end: '' });
     setSelectedConsultant('');
-    fetchAllConsultants(); // Recarrega a lista completa
+    fetchAllConsultants();
   };
 
 
   if (checkingAuth) return null;
 
   if (!isAuthenticated) {
-    return <Login onLogin={handleLoginSuccess} />;
+    return (
+        <>
+            {showSecurityAlert && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-red-600 text-white p-8 rounded-2xl shadow-2xl max-w-md text-center border-4 border-red-800">
+                        <AlertTriangle size={64} className="mx-auto mb-4 text-yellow-300" />
+                        <h2 className="text-3xl font-black mb-2 uppercase tracking-wider">Acesso Negado</h2>
+                        <p className="font-bold text-lg mb-4">Dados protegidos por criptografia militar.</p>
+                        <p className="bg-red-800 p-3 rounded-lg font-mono text-sm">
+                           SEU IP FOI REGISTRADO E ENVIADO PARA AUDITORIA DE SEGURANÇA.
+                        </p>
+                    </div>
+                </div>
+            )}
+            <Login onLogin={handleLoginSuccess} />
+        </>
+    );
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-50 relative">
+      {/* Security Alert Overlay */}
+      {showSecurityAlert && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in duration-200 pointer-events-none">
+              <div className="bg-red-600 text-white p-8 rounded-2xl shadow-2xl max-w-md text-center border-4 border-red-800 transform scale-105">
+                  <div className="flex justify-center mb-4">
+                     <Lock size={64} className="text-white animate-pulse" />
+                  </div>
+                  <h2 className="text-3xl font-black mb-2 uppercase tracking-wider">Área Restrita</h2>
+                  <p className="font-bold text-lg mb-4">Tentativa de inspeção bloqueada.</p>
+                   <div className="bg-black/40 p-4 rounded-lg font-mono text-sm text-left space-y-2">
+                       <p className="text-red-300">> Detectando tentativa de debug...</p>
+                       <p className="text-red-300">> Capturando impressão digital do navegador...</p>
+                       <p className="text-white font-bold">> IP REGISTRADO NO SERVIDOR DE SEGURANÇA.</p>
+                   </div>
+              </div>
+          </div>
+      )}
+
       {/* Sidebar - Desktop */}
       <aside className="w-64 bg-slate-900 text-white hidden md:flex flex-col fixed h-full z-10">
         <div className="p-6 border-b border-slate-800">

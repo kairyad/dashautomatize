@@ -57,7 +57,7 @@ export const ConsultantsTable: React.FC<ConsultantsTableProps> = ({ leads, loadi
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
     if (!dateString) return '-';
     try {
       if (dateString.includes('T')) {
