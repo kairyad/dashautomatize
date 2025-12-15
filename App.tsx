@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from './lib/supabase';
-import { LayoutDashboard, Lightbulb, LogOut, Filter, X, Users, AlertTriangle, Search, ShieldCheck, Lock } from 'lucide-react';
+import { LayoutDashboard, Lightbulb, LogOut, Filter, X, Users, AlertTriangle, Search, ShieldCheck, Lock, Zap } from 'lucide-react';
 import { StatsCards } from './components/StatsCards';
 import { LeadsTable } from './components/LeadsTable';
 import { ConsultantStatsCards } from './components/ConsultantStatsCards';
@@ -399,10 +399,15 @@ function App() {
       {/* Sidebar - Desktop */}
       <aside className="w-64 bg-slate-900 text-white hidden md:flex flex-col fixed h-full z-10">
         <div className="p-6 border-b border-slate-800">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-200 bg-clip-text text-transparent">
-            Dash Automatize
-          </h1>
-          <p className="text-xs text-slate-500 mt-2">Olá, {currentUser}</p>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="bg-blue-600 p-1.5 rounded-lg shadow-lg shadow-blue-500/30">
+                <Zap size={20} className="text-white fill-current" />
+            </div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-200 bg-clip-text text-transparent leading-none">
+                Dash Automatize
+            </h1>
+          </div>
+          <p className="text-xs text-slate-500 mt-2 pl-1">Olá, {currentUser}</p>
         </div>
         
         <nav className="flex-1 p-4 space-y-2">
@@ -483,9 +488,14 @@ function App() {
 
         {/* Mobile Header */}
         <div className="md:hidden flex justify-between items-center mb-6 bg-slate-900 text-white p-4 rounded-xl shadow-lg">
-           <div>
-              <h1 className="font-bold">Dash Automatize</h1>
-              <p className="text-xs text-slate-400">{currentUser}</p>
+           <div className="flex items-center gap-2">
+              <div className="bg-blue-600 p-1.5 rounded-lg">
+                  <Zap size={18} className="text-white fill-current" />
+              </div>
+              <div>
+                  <h1 className="font-bold leading-tight">Dash Automatize</h1>
+                  <p className="text-xs text-slate-400">{currentUser}</p>
+              </div>
            </div>
            <div className="flex gap-2">
              <button 
