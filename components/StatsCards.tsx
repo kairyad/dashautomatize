@@ -9,10 +9,10 @@ interface StatsCardsProps {
 
 export const StatsCards: React.FC<StatsCardsProps> = ({ stats, loading }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
       {/* Total Leads */}
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100 flex items-center space-x-4 hover:shadow-md transition-shadow">
-        <div className="p-3 bg-blue-100 text-blue-600 rounded-lg">
+      <div className="bg-white rounded-xl shadow-sm p-5 md:p-6 border border-slate-100 flex items-center space-x-4 hover:shadow-md transition-shadow">
+        <div className="p-3 bg-blue-100 text-blue-600 rounded-lg flex-shrink-0">
           <Users size={24} />
         </div>
         <div>
@@ -24,8 +24,8 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, loading }) => {
       </div>
 
       {/* Leads Hoje */}
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100 flex items-center space-x-4 hover:shadow-md transition-shadow">
-        <div className="p-3 bg-green-100 text-green-600 rounded-lg">
+      <div className="bg-white rounded-xl shadow-sm p-5 md:p-6 border border-slate-100 flex items-center space-x-4 hover:shadow-md transition-shadow">
+        <div className="p-3 bg-green-100 text-green-600 rounded-lg flex-shrink-0">
           <UserPlus size={24} />
         </div>
         <div>
@@ -37,8 +37,8 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats, loading }) => {
       </div>
 
       {/* Leads por Consultor (Total de registros na tabela leads_consultores) */}
-      <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100 flex items-center space-x-4 hover:shadow-md transition-shadow">
-        <div className="p-3 bg-purple-100 text-purple-600 rounded-lg">
+      <div className="bg-white rounded-xl shadow-sm p-5 md:p-6 border border-slate-100 flex items-center space-x-4 hover:shadow-md transition-shadow">
+        <div className="p-3 bg-purple-100 text-purple-600 rounded-lg flex-shrink-0">
           <Briefcase size={24} />
         </div>
         <div>

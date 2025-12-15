@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from './lib/supabase';
-import { LayoutDashboard, Lightbulb, LogOut, Filter, X, Users, AlertTriangle, Search, ShieldCheck, Lock, Zap } from 'lucide-react';
+import { LayoutDashboard, Lightbulb, LogOut, Filter, X, Users, AlertTriangle, Search, ShieldCheck, Lock, Zap, Menu } from 'lucide-react';
 import { StatsCards } from './components/StatsCards';
 import { LeadsTable } from './components/LeadsTable';
 import { ConsultantStatsCards } from './components/ConsultantStatsCards';
@@ -32,6 +32,7 @@ function App() {
   const [loadingDashboard, setLoadingDashboard] = useState<boolean>(false);
   const [loadingConsultants, setLoadingConsultants] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // --- SECURITY STATE ---
   const [showSecurityAlert, setShowSecurityAlert] = useState(false);
@@ -191,6 +192,7 @@ function App() {
         module_consultants: true,
         module_improvements: true
     });
+    setIsMobileMenuOpen(false);
   };
 
   const handleLoginSuccess = (username: string) => {
@@ -208,6 +210,11 @@ function App() {
     
     // Log do Login
     logSystemAction(username, 'login', null);
+  };
+
+  const handleTabChange = (tab: Tab) => {
+      setActiveTab(tab);
+      setIsMobileMenuOpen(false); // Fecha o menu ao clicar no mobile
   };
 
   // Log de Troca de Aba
@@ -417,24 +424,47 @@ function App() {
   // --- RENDER MAIN APP ---
   return (
     <div className="flex min-h-screen bg-slate-50 relative">
-      {/* Sidebar - Desktop */}
-      <aside className={`w-64 ${isAdminRoute ? 'bg-indigo-950' : 'bg-slate-900'} text-white hidden md:flex flex-col fixed h-full z-10 transition-colors`}>
-        <div className={`p-6 border-b ${isAdminRoute ? 'border-indigo-900' : 'border-slate-800'}`}>
-          <div className="flex items-center gap-2 mb-2">
+      
+      {/* --- MOBILE OVERLAY (BACKDROP) --- */}
+      {isMobileMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-20 md:hidden transition-opacity duration-300"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+      )}
+
+      {/* --- SIDEBAR (RESPONSIVA) --- */}
+      <aside 
+        className={`
+            fixed md:static inset-y-0 left-0 z-30 w-64 
+            ${isAdminRoute ? 'bg-indigo-950' : 'bg-slate-900'} 
+            text-white flex flex-col h-full transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
+            ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}
+      >
+        <div className={`p-6 border-b ${isAdminRoute ? 'border-indigo-900' : 'border-slate-800'} flex items-center justify-between`}>
+          <div className="flex items-center gap-2">
             <div className={`${isAdminRoute ? 'bg-indigo-600' : 'bg-blue-600'} p-1.5 rounded-lg shadow-lg`}>
                 {isAdminRoute ? <ShieldCheck size={20} className="text-white" /> : <Zap size={20} className="text-white fill-current" />}
             </div>
             <h1 className="text-xl font-bold leading-none">
-                Dash Automatize
+                Dash
             </h1>
           </div>
-          <p className="text-xs opacity-60 mt-2 pl-1">Olá, {currentUser}</p>
+          {/* Botão fechar só aparece no mobile dentro do menu */}
+          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400 hover:text-white">
+              <X size={20} />
+          </button>
         </div>
         
-        <nav className="flex-1 p-4 space-y-2">
+        <div className="px-6 py-2">
+             <p className="text-xs opacity-60">Olá, {currentUser}</p>
+        </div>
+        
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {currentUser === 'Kairy' ? (
               <button
-                onClick={() => setActiveTab(Tab.ADMIN)}
+                onClick={() => handleTabChange(Tab.ADMIN)}
                 className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg bg-indigo-600 text-white shadow-lg"
               >
                 <ShieldCheck size={20} />
@@ -444,7 +474,7 @@ function App() {
             // Menu para Usuários Normais
             <>
                 <button
-                    onClick={() => setActiveTab(Tab.DASHBOARD)}
+                    onClick={() => handleTabChange(Tab.DASHBOARD)}
                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                     activeTab === Tab.DASHBOARD ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                     }`}
@@ -453,10 +483,9 @@ function App() {
                     <span className="font-medium">Todos os Leads</span>
                 </button>
 
-                {/* Renderização condicional baseada na permissão module_consultants */}
                 {permissions.module_consultants && (
                     <button
-                        onClick={() => setActiveTab(Tab.CONSULTANTS)}
+                        onClick={() => handleTabChange(Tab.CONSULTANTS)}
                         className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                         activeTab === Tab.CONSULTANTS ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         }`}
@@ -466,10 +495,9 @@ function App() {
                     </button>
                 )}
 
-                {/* Renderização condicional baseada na permissão module_improvements */}
                 {permissions.module_improvements && (
                     <button
-                        onClick={() => setActiveTab(Tab.IMPROVEMENTS)}
+                        onClick={() => handleTabChange(Tab.IMPROVEMENTS)}
                         className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                         activeTab === Tab.IMPROVEMENTS ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         }`}
@@ -494,25 +522,32 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 md:ml-64 p-4 md:p-8 overflow-y-auto">
-        {/* Mobile Header */}
-        <div className="md:hidden flex justify-between items-center mb-6 bg-slate-900 text-white p-4 rounded-xl shadow-lg">
-           <div className="flex items-center gap-2">
-              <div className="bg-blue-600 p-1.5 rounded-lg">
-                  <Zap size={18} className="text-white fill-current" />
-              </div>
-              <div>
+      <main className="flex-1 w-full md:ml-0 p-4 md:p-8 overflow-y-auto">
+        
+        {/* --- MOBILE HEADER (Visible only on mobile) --- */}
+        <div className="md:hidden flex justify-between items-center mb-6 bg-slate-900 text-white p-4 rounded-xl shadow-lg sticky top-0 z-10">
+           <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-1 hover:bg-slate-800 rounded transition-colors"
+              >
+                  <Menu size={24} />
+              </button>
+              <div className="flex items-center gap-2">
+                  <div className="bg-blue-600 p-1 rounded-md">
+                      <Zap size={16} className="text-white fill-current" />
+                  </div>
                   <h1 className="font-bold leading-tight">Dash</h1>
               </div>
            </div>
-           <button onClick={handleLogout}><LogOut size={20} className="text-red-400"/></button>
+           <button onClick={handleLogout} className="text-slate-300 hover:text-red-400"><LogOut size={20}/></button>
         </div>
 
         {/* --- HEADER CONTENT (Conditional) --- */}
         {!isAdminRoute && activeTab !== Tab.IMPROVEMENTS && (
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div className="flex flex-col gap-4 mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-slate-800">
+                <h2 className="text-xl md:text-2xl font-bold text-slate-800">
                     {activeTab === Tab.DASHBOARD ? 'Todos os Leads' : 'Leads por Consultor'}
                 </h2>
                 <p className="text-slate-500 text-sm">
@@ -520,38 +555,45 @@ function App() {
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-lg shadow-sm border border-slate-200">
-                <div className="flex items-center gap-2 px-3 py-1 border-r border-slate-200">
+              {/* Filtros Container */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                <div className="flex items-center gap-2 pb-2 sm:pb-0 sm:pr-3 sm:border-r border-slate-200 border-b sm:border-b-0">
                   <Filter size={16} className="text-slate-400" />
                   <span className="text-sm font-medium text-slate-600">Filtros:</span>
                 </div>
                 
-                {activeTab === Tab.CONSULTANTS && (
-                    <>
-                        <select
-                            value={selectedConsultant}
-                            onChange={(e) => setSelectedConsultant(e.target.value)}
-                            className="text-sm border border-slate-200 rounded-md px-2 py-1 bg-white outline-none"
-                        >
-                            <option value="">Todos Consultores</option>
-                            {consultantOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1" value={consultantDateFilter.start} onChange={(e) => setConsultantDateFilter(p => ({...p, start: e.target.value}))} />
-                        <span className="text-slate-400">-</span>
-                        <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1" value={consultantDateFilter.end} onChange={(e) => setConsultantDateFilter(p => ({...p, end: e.target.value}))} />
-                        <button onClick={fetchFilteredConsultants} className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-md"><Search size={14}/></button>
-                        {(consultantDateFilter.start || selectedConsultant) && <button onClick={handleClearConsultantFilter} className="text-red-500"><X size={14}/></button>}
-                    </>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                    {activeTab === Tab.CONSULTANTS && (
+                        <>
+                            <select
+                                value={selectedConsultant}
+                                onChange={(e) => setSelectedConsultant(e.target.value)}
+                                className="text-sm border border-slate-200 rounded-md px-2 py-1.5 bg-white outline-none w-full sm:w-auto"
+                            >
+                                <option value="">Todos Consultores</option>
+                                {consultantOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1.5 w-full sm:w-auto" value={consultantDateFilter.start} onChange={(e) => setConsultantDateFilter(p => ({...p, start: e.target.value}))} />
+                                <span className="text-slate-400 hidden sm:inline">-</span>
+                                <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1.5 w-full sm:w-auto" value={consultantDateFilter.end} onChange={(e) => setConsultantDateFilter(p => ({...p, end: e.target.value}))} />
+                            </div>
+                            <button onClick={fetchFilteredConsultants} className="bg-blue-600 text-white text-xs px-3 py-2 rounded-md flex-grow sm:flex-grow-0 flex justify-center items-center"><Search size={14}/></button>
+                            {(consultantDateFilter.start || selectedConsultant) && <button onClick={handleClearConsultantFilter} className="text-red-500 p-2"><X size={16}/></button>}
+                        </>
+                    )}
 
-                {activeTab === Tab.DASHBOARD && (
-                    <>
-                        <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1" value={dashboardDateFilter.start} onChange={(e) => setDashboardDateFilter(p => ({...p, start: e.target.value}))} />
-                        <span className="text-slate-400">-</span>
-                        <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1" value={dashboardDateFilter.end} onChange={(e) => setDashboardDateFilter(p => ({...p, end: e.target.value}))} />
-                        {(dashboardDateFilter.start) && <button onClick={() => setDashboardDateFilter({start: '', end: ''})} className="text-red-500 text-xs px-2"><X size={14} /> Limpar</button>}
-                    </>
-                )}
+                    {activeTab === Tab.DASHBOARD && (
+                        <>
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1.5 w-full sm:w-auto" value={dashboardDateFilter.start} onChange={(e) => setDashboardDateFilter(p => ({...p, start: e.target.value}))} />
+                                <span className="text-slate-400 hidden sm:inline">-</span>
+                                <input type="date" className="text-sm border border-slate-200 rounded px-2 py-1.5 w-full sm:w-auto" value={dashboardDateFilter.end} onChange={(e) => setDashboardDateFilter(p => ({...p, end: e.target.value}))} />
+                            </div>
+                            {(dashboardDateFilter.start) && <button onClick={() => setDashboardDateFilter({start: '', end: ''})} className="text-red-500 text-xs px-2 flex items-center gap-1"><X size={14} /> Limpar</button>}
+                        </>
+                    )}
+                </div>
               </div>
             </div>
         )}

@@ -171,10 +171,10 @@ export const AdminPanel: React.FC = () => {
   }
 
   return (
-    <div className="flex h-[calc(100vh-100px)] gap-6">
+    <div className="flex flex-col md:flex-row h-auto md:h-[calc(100vh-100px)] gap-6">
       
       {/* COLUNA ESQUERDA: LISTA DE EMPRESAS */}
-      <div className="w-1/3 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+      <div className="w-full md:w-1/3 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col overflow-hidden h-[300px] md:h-auto">
         <div className="p-4 border-b border-slate-100 bg-slate-50">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
                 <Building2 size={18} className="text-slate-500" />
@@ -213,7 +213,7 @@ export const AdminPanel: React.FC = () => {
       </div>
 
       {/* COLUNA DIREITA: DETALHES DA EMPRESA */}
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+      <div className="w-full md:flex-1 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col overflow-hidden h-auto md:h-auto min-h-[400px]">
         {selectedUser && userStats ? (
             <div className="flex flex-col h-full">
                 {/* Header do Usuário */}
@@ -236,7 +236,7 @@ export const AdminPanel: React.FC = () => {
                 <div className="flex-1 overflow-y-auto p-6">
                     
                     {/* STATS CARDS */}
-                    <div className="grid grid-cols-2 gap-4 mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                         <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
                             <div className="flex items-center gap-2 text-indigo-800 font-semibold mb-2">
                                 <MousePointer size={18} />
@@ -344,10 +344,10 @@ export const AdminPanel: React.FC = () => {
                 </div>
             </div>
         ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-white rounded-xl shadow-sm border border-slate-100 p-8">
                 <Building2 size={64} className="mb-4 text-slate-200" />
                 <p className="text-lg font-medium">Selecione uma empresa</p>
-                <p className="text-sm">Escolha na lista à esquerda para ver estatísticas e gerenciar permissões.</p>
+                <p className="text-sm">Escolha na lista à esquerda (ou acima) para ver detalhes.</p>
                 <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-100 max-w-sm text-center">
                     <p className="text-yellow-700 text-xs flex items-center justify-center gap-2">
                          <AlertCircle size={14} />

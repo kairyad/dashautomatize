@@ -105,7 +105,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ leads, loading }) => {
 
       {/* Table Content */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full text-left border-collapse min-w-[800px] md:min-w-full">
           <thead>
             <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-semibold">
               <th className="p-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('name')}>
@@ -147,7 +147,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ leads, loading }) => {
                   <td className="p-4 font-medium">{lead.name || 'Sem nome'}</td>
                   <td className="p-4">{lead.number}</td>
                   <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
                       lead.qualificacao === 'Qualificado' ? 'bg-green-100 text-green-700' :
                       lead.qualificacao === 'Desqualificado' ? 'bg-red-100 text-red-700' :
                       'bg-slate-100 text-slate-600'
@@ -155,9 +155,11 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ leads, loading }) => {
                       {lead.qualificacao || 'N/A'}
                     </span>
                   </td>
-                  <td className="p-4 flex items-center gap-2">
-                    <Calendar size={14} className="text-slate-400"/>
-                    {formatDate(lead.created_at)}
+                  <td className="p-4">
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                        <Calendar size={14} className="text-slate-400"/>
+                        {formatDate(lead.created_at)}
+                    </div>
                   </td>
                   <td className="p-4">
                     <div className="flex items-center">
@@ -181,9 +183,13 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ leads, loading }) => {
 
       {/* Pagination Footer */}
       <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
-        <span className="text-sm text-slate-500">
+        <span className="text-sm text-slate-500 hidden sm:inline">
           Mostrando {startIndex + 1} até {Math.min(startIndex + itemsPerPage, processedLeads.length)} de {processedLeads.length} registros
         </span>
+        <span className="text-sm text-slate-500 sm:hidden">
+          {currentPage} / {totalPages || 1}
+        </span>
+        
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -191,10 +197,10 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ leads, loading }) => {
             className="px-3 py-1 rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1 text-sm font-medium"
           >
             <ChevronLeft size={16} />
-            <span>Anterior</span>
+            <span className="hidden sm:inline">Anterior</span>
           </button>
           
-          <span className="text-sm font-medium text-slate-700 px-2">
+          <span className="text-sm font-medium text-slate-700 px-2 hidden sm:inline">
             Página {currentPage} de {totalPages || 1}
           </span>
 
@@ -203,7 +209,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ leads, loading }) => {
             disabled={currentPage === totalPages || totalPages === 0}
             className="px-3 py-1 rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1 text-sm font-medium"
           >
-            <span>Próximo</span>
+            <span className="hidden sm:inline">Próximo</span>
             <ChevronRight size={16} />
           </button>
         </div>
