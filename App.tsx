@@ -423,7 +423,7 @@ function App() {
 
   // --- RENDER MAIN APP ---
   return (
-    <div className="flex min-h-screen bg-slate-50 relative">
+    <div className="min-h-screen bg-slate-50 relative"> {/* Removed 'flex' to avoid static conflicts */}
       
       {/* --- MOBILE OVERLAY (BACKDROP) --- */}
       {isMobileMenuOpen && (
@@ -433,12 +433,12 @@ function App() {
           />
       )}
 
-      {/* --- SIDEBAR (RESPONSIVA) --- */}
+      {/* --- SIDEBAR (FIXED) --- */}
       <aside 
         className={`
-            fixed md:static inset-y-0 left-0 z-30 w-64 
+            fixed inset-y-0 left-0 z-30 w-64 
             ${isAdminRoute ? 'bg-indigo-950' : 'bg-slate-900'} 
-            text-white flex flex-col h-full transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
+            text-white flex flex-col h-full transition-transform duration-300 ease-in-out shadow-2xl
             ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
       >
@@ -522,7 +522,7 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 w-full md:ml-0 p-4 md:p-8 overflow-y-auto">
+      <main className="md:ml-64 p-4 md:p-8 min-h-screen transition-all duration-300">
         
         {/* --- MOBILE HEADER (Visible only on mobile) --- */}
         <div className="md:hidden flex justify-between items-center mb-6 bg-slate-900 text-white p-4 rounded-xl shadow-lg sticky top-0 z-10">
