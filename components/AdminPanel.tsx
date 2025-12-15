@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { AccessLog, CompanySettings } from '../types';
-import { Shield, Users, MousePointer, Clock, Activity, Building2, ChevronRight, ToggleRight, ToggleLeft, BarChart2 } from 'lucide-react';
+import { Shield, Users, MousePointer, Clock, Activity, Building2, ChevronRight, ToggleRight, ToggleLeft, BarChart2, AlertCircle } from 'lucide-react';
 
 interface CompanyUser {
   username: string;
@@ -128,24 +128,29 @@ export const AdminPanel: React.FC = () => {
           [key]: newValue
       }));
 
-      // Update DB
+      // Prepare object for DB
       const newSettings = {
-          ...permissions,
-          username: selectedUser,
-          [key]: newValue
+          username: selectedUser, // PK deve estar sempre presente
+          is_active: key === 'is_active' ? newValue : permissions.is_active,
+          module_consultants: key === 'module_consultants' ? newValue : permissions.module_consultants,
+          module_improvements: key === 'module_improvements' ? newValue : permissions.module_improvements
       };
 
       try {
           const { error } = await supabase
             .from('company_settings')
-            .upsert(newSettings);
+            .upsert(newSettings, { onConflict: 'username' });
           
           if (error) throw error;
-      } catch (e) {
+
+          // Sucesso silencioso ou toast se desejar
+      } catch (e: any) {
           console.error('Erro ao salvar permissão:', e);
-          alert('Erro ao salvar alteração.');
-          // Revert on error
+          // Reverte o estado visual em caso de erro
           setPermissions(prev => ({ ...prev, [key]: !newValue }));
+          
+          // Mostra o erro real para facilitar o debug
+          alert(`Erro ao salvar no banco de dados: ${e.message || e.details || JSON.stringify(e)}`);
       }
   };
 
@@ -343,6 +348,13 @@ export const AdminPanel: React.FC = () => {
                 <Building2 size={64} className="mb-4 text-slate-200" />
                 <p className="text-lg font-medium">Selecione uma empresa</p>
                 <p className="text-sm">Escolha na lista à esquerda para ver estatísticas e gerenciar permissões.</p>
+                <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-100 max-w-sm text-center">
+                    <p className="text-yellow-700 text-xs flex items-center justify-center gap-2">
+                         <AlertCircle size={14} />
+                         Se ocorrer erro ao salvar, execute no Supabase SQL Editor: <br/>
+                         <code>ALTER TABLE public.company_settings DISABLE ROW LEVEL SECURITY;</code>
+                    </p>
+                </div>
             </div>
         )}
       </div>

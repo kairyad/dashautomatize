@@ -51,6 +51,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, isAdminRoute = false }) =
             if (foundUser) {
                 // VERIFICAÇÃO DE BLOQUEIO NO BANCO DE DADOS
                 // Verifica se existe configuração para este usuário e se está ativo
+                // IMPORTANTE: Se o usuário for diferente de Kairy (redundante mas seguro)
+                
                 const { data: settings, error: dbError } = await supabase
                     .from('company_settings')
                     .select('is_active')
