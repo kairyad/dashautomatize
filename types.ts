@@ -56,3 +56,10 @@ export interface AccessLog {
   action: string; // 'login', 'tab_change', 'logout'
   details: string | null; // ex: 'dashboard', 'consultants'
 }
+
+export interface CompanySettings {
+  username: string;
+  is_active: boolean;
+  module_consultants: boolean;
+  module_improvements: boolean;
+}

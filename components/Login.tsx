@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, User, Zap, ArrowRight, Eye, EyeOff, ShieldCheck, Shield } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface LoginProps {
   onLogin: (username: string) => void;
@@ -11,43 +12,67 @@ export const Login: React.FC<LoginProps> = ({ onLogin, isAdminRoute = false }) =
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   
   // O modo agora é definido estritamente pela prop passada (que vem da URL)
   const isAdminMode = isAdminRoute;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
-    // Lógica separada por tipo de acesso
-    if (isAdminMode) {
-        // Validação estrita para Admin
-        if (username.trim() === 'Kairy' && password === '88320115#') {
-            onLogin('Kairy');
+    try {
+        // Lógica separada por tipo de acesso
+        if (isAdminMode) {
+            // Validação estrita para Admin
+            if (username.trim() === 'Kairy' && password === '88320115#') {
+                onLogin('Kairy');
+            } else {
+                setError('Acesso negado. Credenciais administrativas inválidas.');
+            }
         } else {
-            setError('Acesso negado. Credenciais administrativas inválidas.');
-        }
-    } else {
-        // Validação para Operacional
-        const userCredentials = [
-             { user: 'Pulseenergy', pass: 'Pulse@energy1' } 
-        ];
+            // Validação para Operacional
+            const userCredentials = [
+                { user: 'Pulseenergy', pass: 'Pulse@energy1' } 
+            ];
 
-        const foundUser = userCredentials.find(
-            cred => cred.user.toLowerCase() === username.trim().toLowerCase() && cred.pass === password
-        );
+            const foundUser = userCredentials.find(
+                cred => cred.user.toLowerCase() === username.trim().toLowerCase() && cred.pass === password
+            );
 
-        // Bloqueia Kairy de logar na tela comum
-        if (username.trim() === 'Kairy') {
-             setError('Acesso administrativo não permitido nesta rota.');
-             return;
-        }
+            // Bloqueia Kairy de logar na tela comum
+            if (username.trim() === 'Kairy') {
+                setError('Acesso administrativo não permitido nesta rota.');
+                setLoading(false);
+                return;
+            }
 
-        if (foundUser) {
-            onLogin(foundUser.user);
-        } else {
-            setError('Credenciais inválidas. Tente novamente.');
+            if (foundUser) {
+                // VERIFICAÇÃO DE BLOQUEIO NO BANCO DE DADOS
+                // Verifica se existe configuração para este usuário e se está ativo
+                const { data: settings, error: dbError } = await supabase
+                    .from('company_settings')
+                    .select('is_active')
+                    .eq('username', foundUser.user)
+                    .single();
+                
+                // Se der erro de "row not found" (PGRST116), significa que não tem config ainda, então deixa entrar (padrão ativo)
+                // Se tiver config e is_active for false, bloqueia.
+                if (settings && settings.is_active === false) {
+                     setError('Acesso suspenso pelo administrador. Contate o suporte.');
+                } else {
+                     onLogin(foundUser.user);
+                }
+            } else {
+                setError('Credenciais inválidas. Tente novamente.');
+            }
         }
+    } catch (err) {
+        console.error(err);
+        setError('Erro ao verificar credenciais. Tente novamente.');
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -191,10 +216,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin, isAdminRoute = false }) =
             {/* Botão Entrar */}
             <button
               type="submit"
-              className={`w-full mt-2 py-3.5 px-4 ${buttonClass} text-white font-bold rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 group`}
+              disabled={loading}
+              className={`w-full mt-2 py-3.5 px-4 ${buttonClass} text-white font-bold rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed`}
             >
-              {isAdminMode ? 'Acessar Admin' : 'Entrar'}
-              <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              {loading ? 'Verificando...' : (isAdminMode ? 'Acessar Admin' : 'Entrar')}
+              {!loading && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
             </button>
           </form>
           

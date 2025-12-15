@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { AccessLog } from '../types';
+import { AccessLog, CompanySettings } from '../types';
 import { Shield, Users, MousePointer, Clock, Activity, Building2, ChevronRight, ToggleRight, ToggleLeft, BarChart2 } from 'lucide-react';
 
 interface CompanyUser {
@@ -13,12 +13,14 @@ export const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   
-  // Estado local para simular permissões (já que não temos tabela de permissões no DB)
-  const [permissions, setPermissions] = useState<Record<string, {
-    active: boolean;
-    consultantsModule: boolean;
-    improvementsModule: boolean;
-  }>>({});
+  // Estado real de permissões
+  const [permissions, setPermissions] = useState<CompanySettings>({
+      username: '',
+      is_active: true,
+      module_consultants: true,
+      module_improvements: true
+  });
+  const [loadingPermissions, setLoadingPermissions] = useState(false);
 
   useEffect(() => {
     fetchLogs();
@@ -30,7 +32,7 @@ export const AdminPanel: React.FC = () => {
         .from('system_logs')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(500); // Aumentei o limite para pegar mais histórico
+        .limit(500); 
 
       if (error) throw error;
       if (data) setLogs(data);
@@ -82,28 +84,69 @@ export const AdminPanel: React.FC = () => {
     };
   }, [logs, selectedUser]);
 
-  // Inicializa permissões se não existirem
+  // Buscar permissões quando seleciona usuário
   useEffect(() => {
-    if (selectedUser && !permissions[selectedUser]) {
-        setPermissions(prev => ({
-            ...prev,
-            [selectedUser]: {
-                active: true,
-                consultantsModule: true,
-                improvementsModule: true
+    const fetchPermissions = async () => {
+        if (!selectedUser) return;
+        setLoadingPermissions(true);
+        try {
+            const { data, error } = await supabase
+                .from('company_settings')
+                .select('*')
+                .eq('username', selectedUser)
+                .single();
+            
+            if (data) {
+                setPermissions(data);
+            } else {
+                // Se não existir, define o padrão
+                setPermissions({
+                    username: selectedUser,
+                    is_active: true,
+                    module_consultants: true,
+                    module_improvements: true
+                });
             }
-        }));
-    }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoadingPermissions(false);
+        }
+    };
+
+    fetchPermissions();
   }, [selectedUser]);
 
-  const togglePermission = (user: string, key: 'active' | 'consultantsModule' | 'improvementsModule') => {
+  const togglePermission = async (key: keyof CompanySettings) => {
+      if (!selectedUser) return;
+      
+      const newValue = !permissions[key];
+      
+      // Update local state optimistic
       setPermissions(prev => ({
           ...prev,
-          [user]: {
-              ...prev[user],
-              [key]: !prev[user][key]
-          }
+          [key]: newValue
       }));
+
+      // Update DB
+      const newSettings = {
+          ...permissions,
+          username: selectedUser,
+          [key]: newValue
+      };
+
+      try {
+          const { error } = await supabase
+            .from('company_settings')
+            .upsert(newSettings);
+          
+          if (error) throw error;
+      } catch (e) {
+          console.error('Erro ao salvar permissão:', e);
+          alert('Erro ao salvar alteração.');
+          // Revert on error
+          setPermissions(prev => ({ ...prev, [key]: !newValue }));
+      }
   };
 
   const formatDate = (dateString: string) => {
@@ -173,8 +216,8 @@ export const AdminPanel: React.FC = () => {
                     <div>
                         <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                             {selectedUser}
-                            <span className={`text-xs px-2 py-0.5 rounded-full border ${permissions[selectedUser]?.active ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
-                                {permissions[selectedUser]?.active ? 'ATIVO' : 'BLOQUEADO'}
+                            <span className={`text-xs px-2 py-0.5 rounded-full border ${permissions.is_active ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                {permissions.is_active ? 'ATIVO' : 'BLOQUEADO'}
                             </span>
                         </h2>
                         <p className="text-slate-500 text-sm mt-1">Gerenciamento de conta e estatísticas</p>
@@ -207,7 +250,7 @@ export const AdminPanel: React.FC = () => {
                                 Status Atual
                             </div>
                             <div className="text-lg font-bold text-slate-800">
-                                Regular
+                                {permissions.is_active ? 'Regular' : 'Suspenso'}
                             </div>
                         </div>
                     </div>
@@ -218,49 +261,53 @@ export const AdminPanel: React.FC = () => {
                             <Shield size={18} className="text-slate-500" />
                             Controle de Funcionalidades
                         </h3>
-                        <div className="space-y-4">
-                            {/* Toggle 1: Acesso Geral */}
-                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                <div>
-                                    <p className="font-medium text-slate-800">Acesso ao Sistema</p>
-                                    <p className="text-xs text-slate-500">Bloquear ou permitir login desta empresa</p>
+                        {loadingPermissions ? (
+                            <div className="text-center py-4 text-slate-500">Carregando permissões...</div>
+                        ) : (
+                            <div className="space-y-4">
+                                {/* Toggle 1: Acesso Geral */}
+                                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div>
+                                        <p className="font-medium text-slate-800">Acesso ao Sistema</p>
+                                        <p className="text-xs text-slate-500">Bloquear ou permitir login desta empresa</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => togglePermission('is_active')}
+                                        className={`transition-colors ${permissions.is_active ? 'text-green-600' : 'text-slate-400'}`}
+                                    >
+                                        {permissions.is_active ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                                    </button>
                                 </div>
-                                <button 
-                                    onClick={() => togglePermission(selectedUser, 'active')}
-                                    className={`transition-colors ${permissions[selectedUser]?.active ? 'text-green-600' : 'text-slate-400'}`}
-                                >
-                                    {permissions[selectedUser]?.active ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
-                                </button>
-                            </div>
 
-                            {/* Toggle 2: Módulo Consultores */}
-                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                <div>
-                                    <p className="font-medium text-slate-800">Módulo de Consultores</p>
-                                    <p className="text-xs text-slate-500">Acesso à aba de distribuição de leads</p>
+                                {/* Toggle 2: Módulo Consultores */}
+                                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div>
+                                        <p className="font-medium text-slate-800">Módulo de Consultores</p>
+                                        <p className="text-xs text-slate-500">Acesso à aba de distribuição de leads</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => togglePermission('module_consultants')}
+                                        className={`transition-colors ${permissions.module_consultants ? 'text-indigo-600' : 'text-slate-400'}`}
+                                    >
+                                        {permissions.module_consultants ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                                    </button>
                                 </div>
-                                <button 
-                                    onClick={() => togglePermission(selectedUser, 'consultantsModule')}
-                                    className={`transition-colors ${permissions[selectedUser]?.consultantsModule ? 'text-indigo-600' : 'text-slate-400'}`}
-                                >
-                                    {permissions[selectedUser]?.consultantsModule ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
-                                </button>
-                            </div>
 
-                            {/* Toggle 3: Módulo Melhorias */}
-                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                <div>
-                                    <p className="font-medium text-slate-800">Solicitação de Melhorias</p>
-                                    <p className="text-xs text-slate-500">Permissão para enviar feedbacks</p>
+                                {/* Toggle 3: Módulo Melhorias */}
+                                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div>
+                                        <p className="font-medium text-slate-800">Solicitação de Melhorias</p>
+                                        <p className="text-xs text-slate-500">Permissão para enviar feedbacks</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => togglePermission('module_improvements')}
+                                        className={`transition-colors ${permissions.module_improvements ? 'text-indigo-600' : 'text-slate-400'}`}
+                                    >
+                                        {permissions.module_improvements ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                                    </button>
                                 </div>
-                                <button 
-                                    onClick={() => togglePermission(selectedUser, 'improvementsModule')}
-                                    className={`transition-colors ${permissions[selectedUser]?.improvementsModule ? 'text-indigo-600' : 'text-slate-400'}`}
-                                >
-                                    {permissions[selectedUser]?.improvementsModule ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
-                                </button>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* ACTIVITY LOG (Mini) */}

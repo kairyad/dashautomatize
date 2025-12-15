@@ -8,13 +8,21 @@ import { ConsultantsTable } from './components/ConsultantsTable';
 import { ImprovementsForm } from './components/ImprovementsForm';
 import { AdminPanel } from './components/AdminPanel'; 
 import { Login } from './components/Login';
-import { Lead, DashboardStats, Tab, DateFilter, ConsultantLead, ConsultantStats } from './types';
+import { Lead, DashboardStats, Tab, DateFilter, ConsultantLead, ConsultantStats, CompanySettings } from './types';
 
 function App() {
   // --- Auth State ---
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<string>(''); 
   const [checkingAuth, setCheckingAuth] = useState<boolean>(true);
+  
+  // --- Permissions State ---
+  const [permissions, setPermissions] = useState<CompanySettings>({
+      username: '',
+      is_active: true,
+      module_consultants: true,
+      module_improvements: true
+  });
   
   // --- Route State ---
   const [isAdminRoute, setIsAdminRoute] = useState<boolean>(false);
@@ -122,21 +130,17 @@ function App() {
     const storedUser = localStorage.getItem('dash_user');
 
     if (storedAuth === 'true' && storedUser) {
-      // Se for rota admin, só restaura sessão se for o Admin
       if (isAdminRoute) {
           if (storedUser === 'Kairy') {
               setIsAuthenticated(true);
               setCurrentUser(storedUser);
-              setActiveTab(Tab.ADMIN); // Force admin tab on reload in admin route
+              setActiveTab(Tab.ADMIN); 
           } else {
-              // Se tiver logado como user normal mas acessou rota admin, logout
               localStorage.removeItem('dash_auth');
               localStorage.removeItem('dash_user');
           }
       } else {
-          // Rota normal
           if (storedUser === 'Kairy') {
-             // Admin não deve estar na rota normal (opcional, mas bom pra segregar)
              localStorage.removeItem('dash_auth');
              localStorage.removeItem('dash_user');
           } else {
@@ -148,6 +152,29 @@ function App() {
     setCheckingAuth(false);
   }, [isAdminRoute]);
 
+  // --- FETCH PERMISSIONS ---
+  useEffect(() => {
+      const fetchPermissions = async () => {
+          if (isAuthenticated && currentUser && currentUser !== 'Kairy') {
+             const { data } = await supabase.from('company_settings').select('*').eq('username', currentUser).single();
+             if (data) {
+                 setPermissions(data);
+                 
+                 // Segurança extra: se foi desativado enquanto logado
+                 if (data.is_active === false) {
+                     handleLogout();
+                 }
+
+                 // Se estiver numa aba desabilitada, redireciona
+                 if (activeTab === Tab.CONSULTANTS && !data.module_consultants) setActiveTab(Tab.DASHBOARD);
+                 if (activeTab === Tab.IMPROVEMENTS && !data.module_improvements) setActiveTab(Tab.DASHBOARD);
+             }
+          }
+      };
+
+      if (isAuthenticated) fetchPermissions();
+  }, [isAuthenticated, currentUser, activeTab]);
+
   const handleLogout = () => {
     if (currentUser) {
         logSystemAction(currentUser, 'logout', null);
@@ -157,6 +184,13 @@ function App() {
     setIsAuthenticated(false);
     setCurrentUser('');
     setActiveTab(Tab.DASHBOARD);
+    // Reset permissions to default
+    setPermissions({
+        username: '',
+        is_active: true,
+        module_consultants: true,
+        module_improvements: true
+    });
   };
 
   const handleLoginSuccess = (username: string) => {
@@ -332,8 +366,8 @@ function App() {
   }, [activeTab, fetchDashboardData, isAuthenticated]);
 
   useEffect(() => {
-    if (activeTab === Tab.CONSULTANTS && isAuthenticated) fetchAllConsultants();
-  }, [activeTab, fetchAllConsultants, isAuthenticated]);
+    if (activeTab === Tab.CONSULTANTS && isAuthenticated && permissions.module_consultants) fetchAllConsultants();
+  }, [activeTab, fetchAllConsultants, isAuthenticated, permissions.module_consultants]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -398,11 +432,6 @@ function App() {
         </div>
         
         <nav className="flex-1 p-4 space-y-2">
-          {/* Se for Admin (Kairy), mostra APENAS o painel de admin ou tudo? 
-              O prompt diz "só para ter controle". Vou deixar APENAS AdminPanel se for Kairy 
-              para manter o foco do admin, ou permitir ele navegar? 
-              Vou permitir apenas AdminPanel para Kairy conforme a solicitação de "controle" */}
-          
           {currentUser === 'Kairy' ? (
               <button
                 onClick={() => setActiveTab(Tab.ADMIN)}
@@ -424,25 +453,31 @@ function App() {
                     <span className="font-medium">Todos os Leads</span>
                 </button>
 
-                <button
-                    onClick={() => setActiveTab(Tab.CONSULTANTS)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    activeTab === Tab.CONSULTANTS ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                >
-                    <Users size={20} />
-                    <span className="font-medium">Leads Consultores</span>
-                </button>
+                {/* Renderização condicional baseada na permissão module_consultants */}
+                {permissions.module_consultants && (
+                    <button
+                        onClick={() => setActiveTab(Tab.CONSULTANTS)}
+                        className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                        activeTab === Tab.CONSULTANTS ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        }`}
+                    >
+                        <Users size={20} />
+                        <span className="font-medium">Leads Consultores</span>
+                    </button>
+                )}
 
-                <button
-                    onClick={() => setActiveTab(Tab.IMPROVEMENTS)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    activeTab === Tab.IMPROVEMENTS ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                >
-                    <Lightbulb size={20} />
-                    <span className="font-medium">Melhorias</span>
-                </button>
+                {/* Renderização condicional baseada na permissão module_improvements */}
+                {permissions.module_improvements && (
+                    <button
+                        onClick={() => setActiveTab(Tab.IMPROVEMENTS)}
+                        className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                        activeTab === Tab.IMPROVEMENTS ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        }`}
+                    >
+                        <Lightbulb size={20} />
+                        <span className="font-medium">Melhorias</span>
+                    </button>
+                )}
             </>
           )}
         </nav>
@@ -530,14 +565,14 @@ function App() {
           </div>
         )}
 
-        {activeTab === Tab.CONSULTANTS && (
+        {activeTab === Tab.CONSULTANTS && permissions.module_consultants && (
            <div className="animate-fade-in">
              <ConsultantStatsCards stats={consultantStats} loading={loadingConsultants} />
              <ConsultantsTable leads={filteredConsultantLeads} loading={loadingConsultants} />
            </div>
         )}
 
-        {activeTab === Tab.IMPROVEMENTS && (
+        {activeTab === Tab.IMPROVEMENTS && permissions.module_improvements && (
           <div className="animate-fade-in">
              <div className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-800">Central de Melhorias</h2>
