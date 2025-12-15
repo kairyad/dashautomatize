@@ -388,9 +388,9 @@ function App() {
                   <h2 className="text-3xl font-black mb-2 uppercase tracking-wider">Área Restrita</h2>
                   <p className="font-bold text-lg mb-4">Tentativa de inspeção bloqueada.</p>
                    <div className="bg-black/40 p-4 rounded-lg font-mono text-sm text-left space-y-2">
-                       <p className="text-red-300">> Detectando tentativa de debug...</p>
-                       <p className="text-red-300">> Capturando impressão digital do navegador...</p>
-                       <p className="text-white font-bold">> IP REGISTRADO NO SERVIDOR DE SEGURANÇA.</p>
+                       <p className="text-red-300">&gt; Detectando tentativa de debug...</p>
+                       <p className="text-red-300">&gt; Capturando impressão digital do navegador...</p>
+                       <p className="text-white font-bold">&gt; IP REGISTRADO NO SERVIDOR DE SEGURANÇA.</p>
                    </div>
               </div>
           </div>
