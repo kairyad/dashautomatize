@@ -32,9 +32,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="flex min-h-screen w-full font-sans bg-white overflow-hidden">
+    <div className="flex min-h-screen w-full font-sans bg-slate-50 lg:bg-white overflow-hidden">
       
-      {/* --- PAINEL ESQUERDO (Visual/Institucional) --- */}
+      {/* --- PAINEL ESQUERDO (Visual/Institucional - Desktop) --- */}
       <div className="hidden lg:flex w-1/2 relative bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white overflow-hidden flex-col justify-between p-12 z-10">
         
         {/* Elementos de Fundo (Abstrato/Tecnológico) */}
@@ -74,9 +74,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
       </div>
 
-      {/* --- PAINEL DIREITO (Login Form) --- */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center bg-slate-50/50 p-6 md:p-12">
+      {/* --- PAINEL DIREITO (Login Form - Mobile & Desktop) --- */}
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 md:p-12 relative">
         
+        {/* Mobile Header / Branding (Visible only on mobile/tablet) */}
+        <div className="lg:hidden flex flex-col items-center mb-8 animate-in slide-in-from-top-4 fade-in duration-500">
+            <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600 shadow-xl shadow-blue-500/30 mb-4 transform hover:scale-105 transition-transform">
+                <Zap size={28} className="text-white fill-current" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Dash Automatize</h1>
+            <p className="text-slate-500 text-sm mt-1 max-w-[250px] text-center">Gestão inteligente para sua operação</p>
+        </div>
+
         {/* Card Centralizado */}
         <div className="w-full max-w-[420px] bg-white rounded-3xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.08)] border border-slate-100 p-8 md:p-10 relative">
           
@@ -161,6 +170,11 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </p>
           </div>
 
+        </div>
+
+        {/* Footer Mobile */}
+        <div className="lg:hidden mt-8 text-slate-400 text-xs font-medium">
+             © 2025 AUTOMATIZE SYSTEM
         </div>
       </div>
     </div>
