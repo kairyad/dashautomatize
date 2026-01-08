@@ -53,12 +53,12 @@ function App() {
     sentToday: 0,
     activeConsultants: 0,
   });
+  const [manualConsultantCount, setManualConsultantCount] = useState<number | null>(null);
   const [consultantDateFilter, setConsultantDateFilter] = useState<DateFilter>({ start: '', end: '' });
   const [selectedConsultant, setSelectedConsultant] = useState<string>('');
 
   // --- CHECK ROUTE ---
   useEffect(() => {
-    // Check if the current path is /adminatm
     const path = window.location.pathname;
     if (path === '/adminatm' || path === '/adminatm/') {
         setIsAdminRoute(true);
@@ -80,21 +80,16 @@ function App() {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // F12
       if (e.key === 'F12' || e.keyCode === 123) {
         e.preventDefault();
         triggerSecurityWarning();
         return;
       }
-
-      // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
       if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) {
         e.preventDefault();
         triggerSecurityWarning();
         return;
       }
-
-      // Ctrl+U
       if (e.ctrlKey && (e.key === 'U' || e.key === 'u')) {
         e.preventDefault();
         triggerSecurityWarning();
@@ -129,6 +124,11 @@ function App() {
   useEffect(() => {
     const storedAuth = localStorage.getItem('dash_auth');
     const storedUser = localStorage.getItem('dash_user');
+    const storedManualCount = localStorage.getItem('manual_consultant_count');
+
+    if (storedManualCount) {
+      setManualConsultantCount(parseInt(storedManualCount));
+    }
 
     if (storedAuth === 'true' && storedUser) {
       if (isAdminRoute) {
@@ -160,13 +160,9 @@ function App() {
              const { data } = await supabase.from('company_settings').select('*').eq('username', currentUser).single();
              if (data) {
                  setPermissions(data);
-                 
-                 // Segurança extra: se foi desativado enquanto logado
                  if (data.is_active === false) {
                      handleLogout();
                  }
-
-                 // Se estiver numa aba desabilitada, redireciona
                  if (activeTab === Tab.CONSULTANTS && !data.module_consultants) setActiveTab(Tab.DASHBOARD);
                  if (activeTab === Tab.IMPROVEMENTS && !data.module_improvements) setActiveTab(Tab.DASHBOARD);
              }
@@ -185,7 +181,6 @@ function App() {
     setIsAuthenticated(false);
     setCurrentUser('');
     setActiveTab(Tab.DASHBOARD);
-    // Reset permissions to default
     setPermissions({
         username: '',
         is_active: true,
@@ -200,24 +195,19 @@ function App() {
     localStorage.setItem('dash_user', username);
     setIsAuthenticated(true);
     setCurrentUser(username);
-    
-    // Se for admin logando, joga direto pra tab Admin
     if (username === 'Kairy') {
         setActiveTab(Tab.ADMIN);
     } else {
         setActiveTab(Tab.DASHBOARD);
     }
-    
-    // Log do Login
     logSystemAction(username, 'login', null);
   };
 
   const handleTabChange = (tab: Tab) => {
       setActiveTab(tab);
-      setIsMobileMenuOpen(false); // Fecha o menu ao clicar no mobile
+      setIsMobileMenuOpen(false);
   };
 
-  // Log de Troca de Aba
   useEffect(() => {
     if (isAuthenticated && currentUser) {
         const timeout = setTimeout(() => {
@@ -227,22 +217,13 @@ function App() {
     }
   }, [activeTab, isAuthenticated, currentUser]);
 
-
   const getErrorMessage = (err: any): string => {
     if (!err) return 'Erro desconhecido';
     if (typeof err === 'string') return err;
     if (err.message) return err.message;
-    if (err.error_description) return err.error_description;
-    try {
-        return JSON.stringify(err);
-    } catch (e) {
-        return 'Erro não serializável';
-    }
+    return 'Erro ao processar solicitação';
   };
 
-  // ==============================================================================
-  // DATA FETCHING LOGIC (DASHBOARD & CONSULTANTS)
-  // ==============================================================================
   const fetchDashboardData = useCallback(async () => {
     if (!isAuthenticated) return;
     setLoadingDashboard(true);
@@ -307,14 +288,17 @@ function App() {
       const totalSent = sortedData.length;
       const todayStr = new Date().toISOString().split('T')[0];
       const sentToday = sortedData.filter((item: ConsultantLead) => item.data === todayStr).length;
+      
+      // Cálculo automático
       const uniqueConsultants = new Set(sortedData.map((d: ConsultantLead) => d.consultor).filter(Boolean));
 
       setConsultantStats({
         totalSent,
         sentToday,
-        activeConsultants: uniqueConsultants.size
+        // Usa o manual se existir, senão usa o calculado
+        activeConsultants: manualConsultantCount !== null ? manualConsultantCount : uniqueConsultants.size
       });
-  }, []);
+  }, [manualConsultantCount]);
 
   const fetchAllConsultants = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -367,24 +351,18 @@ function App() {
     }
   }, [isAuthenticated, consultantDateFilter, processConsultantData]);
 
-  // --- Effects ---
   useEffect(() => {
     if (activeTab === Tab.DASHBOARD && isAuthenticated) fetchDashboardData();
   }, [activeTab, fetchDashboardData, isAuthenticated]);
 
   useEffect(() => {
     if (activeTab === Tab.CONSULTANTS && isAuthenticated && permissions.module_consultants) fetchAllConsultants();
-  }, [activeTab, fetchAllConsultants, isAuthenticated, permissions.module_consultants]);
+  }, [activeTab, fetchAllConsultants, isAuthenticated, permissions.module_consultants, manualConsultantCount]);
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    const channel = supabase.channel('global_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'novos_leads' }, () => {
-         if(activeTab === Tab.DASHBOARD) fetchDashboardData();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [isAuthenticated, activeTab, fetchDashboardData]);
+  const handleManualConsultantUpdate = (val: number) => {
+    setManualConsultantCount(val);
+    localStorage.setItem('manual_consultant_count', val.toString());
+  };
 
   const consultantOptions = useMemo(() => {
     const consultants = new Set(consultantLeads.map(l => l.consultor).filter(Boolean));
@@ -421,11 +399,8 @@ function App() {
     );
   }
 
-  // --- RENDER MAIN APP ---
   return (
-    <div className="min-h-screen bg-slate-50 relative"> {/* Removed 'flex' to avoid static conflicts */}
-      
-      {/* --- MOBILE OVERLAY (BACKDROP) --- */}
+    <div className="min-h-screen bg-slate-50 relative">
       {isMobileMenuOpen && (
           <div 
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-20 md:hidden transition-opacity duration-300"
@@ -433,7 +408,6 @@ function App() {
           />
       )}
 
-      {/* --- SIDEBAR (FIXED) --- */}
       <aside 
         className={`
             fixed inset-y-0 left-0 z-30 w-64 
@@ -447,11 +421,8 @@ function App() {
             <div className={`${isAdminRoute ? 'bg-indigo-600' : 'bg-blue-600'} p-1.5 rounded-lg shadow-lg`}>
                 {isAdminRoute ? <ShieldCheck size={20} className="text-white" /> : <Zap size={20} className="text-white fill-current" />}
             </div>
-            <h1 className="text-xl font-bold leading-none">
-                Dash
-            </h1>
+            <h1 className="text-xl font-bold leading-none">Dash</h1>
           </div>
-          {/* Botão fechar só aparece no mobile dentro do menu */}
           <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400 hover:text-white">
               <X size={20} />
           </button>
@@ -471,7 +442,6 @@ function App() {
                 <span className="font-medium">Admin Panel</span>
               </button>
           ) : (
-            // Menu para Usuários Normais
             <>
                 <button
                     onClick={() => handleTabChange(Tab.DASHBOARD)}
@@ -521,16 +491,10 @@ function App() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="md:ml-64 p-4 md:p-8 min-h-screen transition-all duration-300">
-        
-        {/* --- MOBILE HEADER (Visible only on mobile) --- */}
         <div className="md:hidden flex justify-between items-center mb-6 bg-slate-900 text-white p-4 rounded-xl shadow-lg sticky top-0 z-10">
            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="p-1 hover:bg-slate-800 rounded transition-colors"
-              >
+              <button onClick={() => setIsMobileMenuOpen(true)} className="p-1 hover:bg-slate-800 rounded transition-colors">
                   <Menu size={24} />
               </button>
               <div className="flex items-center gap-2">
@@ -543,7 +507,6 @@ function App() {
            <button onClick={handleLogout} className="text-slate-300 hover:text-red-400"><LogOut size={20}/></button>
         </div>
 
-        {/* --- HEADER CONTENT (Conditional) --- */}
         {!isAdminRoute && activeTab !== Tab.IMPROVEMENTS && (
             <div className="flex flex-col gap-4 mb-6">
               <div>
@@ -555,7 +518,6 @@ function App() {
                 </p>
               </div>
 
-              {/* Filtros Container */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-white p-3 rounded-lg shadow-sm border border-slate-200">
                 <div className="flex items-center gap-2 pb-2 sm:pb-0 sm:pr-3 sm:border-r border-slate-200 border-b sm:border-b-0">
                   <Filter size={16} className="text-slate-400" />
@@ -597,8 +559,6 @@ function App() {
               </div>
             </div>
         )}
-
-        {/* --- MAIN TAB CONTENT --- */}
         
         {activeTab === Tab.DASHBOARD && (
           <div className="animate-fade-in">
@@ -609,7 +569,11 @@ function App() {
 
         {activeTab === Tab.CONSULTANTS && permissions.module_consultants && (
            <div className="animate-fade-in">
-             <ConsultantStatsCards stats={consultantStats} loading={loadingConsultants} />
+             <ConsultantStatsCards 
+                stats={consultantStats} 
+                loading={loadingConsultants} 
+                onManualUpdate={handleManualConsultantUpdate}
+             />
              <ConsultantsTable leads={filteredConsultantLeads} loading={loadingConsultants} />
            </div>
         )}
@@ -623,7 +587,6 @@ function App() {
           </div>
         )}
 
-        {/* O painel Admin só carrega se for Kairy e estiver na rota correta */}
         {activeTab === Tab.ADMIN && currentUser === 'Kairy' && (
             <div className="animate-fade-in h-full">
                 <AdminPanel />
